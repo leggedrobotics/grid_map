@@ -56,39 +56,23 @@ void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::
   pcl::transformPointCloud(*inputCloud, *inputCloudTransformed, affine_transform);
   inputCloudTransformed->header.frame_id = "map";
 
-  // Here for testing: convert to ROS message and publish
-  // sensor_msgs::PointCloud2 testCloud;
-  // pcl::toROSMsg(*inputCloud, testCloud);
-  // testCloudPub_.publish(testCloud);
-
   setInputCloud(inputCloudTransformed);
 }
 
 void GridMapPclLoader::mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloudMessage) {
-  //  const std::string pathToCloud = gm::getPcdFilePath(nh);
-  // loadParameters(grid_map::grid_map_pcl::getParameterPath);
-  loadCloudFromROSCallback(mapCloudMessage);
 
-  // std::cout << "FRAME ID FROM ROS Pointcloud: " << mapCloudMessage->header.frame_id << std::endl;
+  loadCloudFromROSCallback(mapCloudMessage);
 
   grid_map::grid_map_pcl::processPointcloud(this, nodeHandle_);
 
   grid_map::GridMap gridMap = getGridMap();
   gridMap.setFrameId(grid_map::grid_map_pcl::getMapFrame(nodeHandle_));
 
-  std::cout << "frame id: " << grid_map::grid_map_pcl::getMapFrame(nodeHandle_) << std::endl;
-
-  //  // publish grid map
-
+  // publish grid map
   grid_map_msgs::GridMap msg;
   grid_map::GridMapRosConverter::toMessage(gridMap, msg);
   gridMapPub_.publish(msg);
 }
-
-// std::string GridMapPclLoader::getParameterPath() {
-//  std::string filePath = ros::package::getPath("grid_map_pcl") + "/config/parameters.yaml";
-//  return filePath;
-//}
 
 void GridMapPclLoader::setInputCloud(Pointcloud::ConstPtr inputCloud) {
   setRawInputCloud(inputCloud);
