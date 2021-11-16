@@ -48,12 +48,19 @@ class PclLoaderParameters {
     unsigned int minCloudPointsPerCell_ = 2;
   };
 
+  struct CroppingParameters {
+    bool isCroppingInZ_ = false;
+    double croppingLimitZMax_ = 2.0;
+    double croppingLimitZMin_ = -2.0;
+  };
+
   struct Parameters {
     unsigned int numThreads_ = 4;
     RigidBodyTransformation cloudTransformation_;
     OutlierRemovalParameters outlierRemoval_;
     ClusterExtractionParameters clusterExtraction_;
     DownsamplingParameters downsampling_;
+    CroppingParameters cropping_;
     GridMapParameters gridMap_;
   };
 

@@ -21,6 +21,8 @@
 
 #include <ros/console.h>
 
+#include <pcl/filters/passthrough.h>
+
 namespace grid_map {
 namespace grid_map_pcl {
 
@@ -92,6 +94,18 @@ Pointcloud::Ptr PointcloudProcessor::downsampleInputCloud(Pointcloud::ConstPtr i
   Pointcloud::Ptr downsampledCloud(new Pointcloud());
   voxelGrid.filter(*downsampledCloud);
   return downsampledCloud;
+}
+
+Pointcloud::Ptr PointcloudProcessor::cropInputCloud(Pointcloud::ConstPtr inputCloud) const {
+  pcl::PassThrough<pcl::PointXYZ> passThroughFilter;
+  passThroughFilter.setInputCloud(inputCloud);
+  passThroughFilter.setFilterFieldName("z");
+  const auto& croppingLimitZMax = params_->get().cropping_.croppingLimitZMax_;
+  const auto& croppingLimitZMin = params_->get().cropping_.croppingLimitZMin_;
+  passThroughFilter.setFilterLimits(croppingLimitZMin, croppingLimitZMax);  // Paramify this
+  Pointcloud::Ptr croppedCloud(new Pointcloud());
+  passThroughFilter.filter(*croppedCloud);
+  return croppedCloud;
 }
 
 void PointcloudProcessor::savePointCloudAsPcdFile(const std::string& filename, const Pointcloud& cloud) {

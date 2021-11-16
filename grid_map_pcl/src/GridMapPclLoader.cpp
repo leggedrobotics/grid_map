@@ -32,6 +32,64 @@ void GridMapPclLoader::loadCloudFromPcdFile(const std::string& filename) {
   setInputCloud(inputCloud);
 }
 
+void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloud) {
+  Pointcloud::Ptr inputCloud(new pcl::PointCloud<pcl::PointXYZ>);
+  Pointcloud::Ptr inputCloudTransformed(new pcl::PointCloud<pcl::PointXYZ>);
+
+  pcl::fromROSMsg(*mapCloud, *inputCloud);
+
+  // Directly look up lidar to IMU transform for usage in calibration files
+  tf::StampedTransform camerainit2mapTF;
+  try {
+    tfListener_.waitForTransform("map", "camera_init", ros::Time(0), ros::Duration(0.1));
+    tfListener_.lookupTransform("map", "camera_init", ros::Time(0), camerainit2mapTF);
+  } catch (tf::TransformException& ex) {
+    ROS_WARN("%s", ex.what());
+    return;
+  }
+
+  Eigen::Affine3d affine_transform = Eigen::Affine3d::Identity();
+  Eigen::Quaterniond q(camerainit2mapTF.getRotation().w(), camerainit2mapTF.getRotation().x(), camerainit2mapTF.getRotation().y(),
+                       camerainit2mapTF.getRotation().z());
+  affine_transform.rotate(q);
+
+  pcl::transformPointCloud(*inputCloud, *inputCloudTransformed, affine_transform);
+  inputCloudTransformed->header.frame_id = "map";
+
+  // Here for testing: convert to ROS message and publish
+  // sensor_msgs::PointCloud2 testCloud;
+  // pcl::toROSMsg(*inputCloud, testCloud);
+  // testCloudPub_.publish(testCloud);
+
+  setInputCloud(inputCloudTransformed);
+}
+
+void GridMapPclLoader::mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloudMessage) {
+  //  const std::string pathToCloud = gm::getPcdFilePath(nh);
+  // loadParameters(grid_map::grid_map_pcl::getParameterPath);
+  loadCloudFromROSCallback(mapCloudMessage);
+
+  // std::cout << "FRAME ID FROM ROS Pointcloud: " << mapCloudMessage->header.frame_id << std::endl;
+
+  grid_map::grid_map_pcl::processPointcloud(this, nodeHandle_);
+
+  grid_map::GridMap gridMap = getGridMap();
+  gridMap.setFrameId(grid_map::grid_map_pcl::getMapFrame(nodeHandle_));
+
+  std::cout << "frame id: " << grid_map::grid_map_pcl::getMapFrame(nodeHandle_) << std::endl;
+
+  //  // publish grid map
+
+  grid_map_msgs::GridMap msg;
+  grid_map::GridMapRosConverter::toMessage(gridMap, msg);
+  gridMapPub_.publish(msg);
+}
+
+// std::string GridMapPclLoader::getParameterPath() {
+//  std::string filePath = ros::package::getPath("grid_map_pcl") + "/config/parameters.yaml";
+//  return filePath;
+//}
+
 void GridMapPclLoader::setInputCloud(Pointcloud::ConstPtr inputCloud) {
   setRawInputCloud(inputCloud);
   setWorkingCloud(inputCloud);
@@ -63,6 +121,11 @@ void GridMapPclLoader::preProcessInputCloud() {
   if (params_.get().downsampling_.isDownsampleCloud_) {
     auto downsampledCloud = pointcloudProcessor_.downsampleInputCloud(workingCloud_);
     setWorkingCloud(downsampledCloud);
+  }
+
+  if (params_.get().cropping_.isCroppingInZ_) {
+    auto croppedCloud = pointcloudProcessor_.cropInputCloud(workingCloud_);
+    setWorkingCloud(croppedCloud);
   }
 
   auto transformedCloud = pointcloudProcessor_.applyRigidBodyTransformation(workingCloud_);

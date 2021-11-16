@@ -47,6 +47,16 @@ class PointcloudProcessor {
    */
   Pointcloud::Ptr downsampleInputCloud(Pointcloud::ConstPtr inputCloud) const;
 
+  /*!  TODO TODO
+   * Downsample the point cloud using voxel grid method. Implementation is
+   * based on the implementation from pcl. The explanation of the algorithm
+   * can be found here:
+   * http://pointclouds.org/documentation/tutorials/voxel_grid.php
+   * @param[in] Input point cloud
+   * @return Downsampled point cloud
+   */
+  Pointcloud::Ptr cropInputCloud(Pointcloud::ConstPtr inputCloud) const;
+
   /*!
    * Finds clusters in the input cloud and returns vector of sets of indices.
    * Each set of indices corresponds to the points in the input cloud that

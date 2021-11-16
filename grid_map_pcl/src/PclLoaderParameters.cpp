@@ -44,6 +44,10 @@ void PclLoaderParameters::handleYamlNode(const YAML::Node& yamlNode) {
   parameters_.downsampling_.voxelSize_.x() = yamlNode[prefix]["downsampling"]["voxel_size"]["x"].as<double>();
   parameters_.downsampling_.voxelSize_.y() = yamlNode[prefix]["downsampling"]["voxel_size"]["y"].as<double>();
   parameters_.downsampling_.voxelSize_.z() = yamlNode[prefix]["downsampling"]["voxel_size"]["z"].as<double>();
+
+  parameters_.cropping_.isCroppingInZ_ = yamlNode[prefix]["cropping"]["is_cropping_in_z"].as<bool>();
+  parameters_.cropping_.croppingLimitZMax_ = yamlNode[prefix]["cropping"]["cropping_limit_z_max"].as<double>();
+  parameters_.cropping_.croppingLimitZMin_ = yamlNode[prefix]["cropping"]["cropping_limit_z_min"].as<double>();
 }
 
 bool PclLoaderParameters::loadParameters(const std::string& filename) {

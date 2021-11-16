@@ -13,9 +13,23 @@
 #include <string>
 
 #include <grid_map_core/GridMap.hpp>
+#include <grid_map_ros/GridMapRosConverter.hpp>
 
 #include "grid_map_pcl/PclLoaderParameters.hpp"
 #include "grid_map_pcl/PointcloudProcessor.hpp"
+
+#include <pcl_conversions/pcl_conversions.h>
+#include <sensor_msgs/PointCloud2.h>
+
+#include <pcl/io/pcd_io.h>
+#include <pcl/pcl_macros.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
+// CUSTOMIZATION
+#include <pcl/common/transforms.h>
+#include <tf/transform_listener.h>
+// CUSTOMIZATION
 
 namespace grid_map {
 
@@ -39,7 +53,15 @@ class GridMapPclLoader {
   using Point = ::pcl::PointXYZ;
   using Pointcloud = ::pcl::PointCloud<Point>;
 
-  GridMapPclLoader() = default;
+  GridMapPclLoader(ros::NodeHandle& nodeHandle) {
+    // nh
+    nodeHandle_ = nodeHandle;
+    // Pub
+    gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>("grid_map_from_raw_pointcloud", 1, true);
+    testCloudPub_ = nodeHandle.advertise<sensor_msgs::PointCloud2>("test_cloudy", 1, true);
+    // Sub
+    mapPCLSub_ = nodeHandle.subscribe("/loam/map", 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
+  }
   ~GridMapPclLoader() = default;
 
   /*!
@@ -47,6 +69,18 @@ class GridMapPclLoader {
    * @param[in] fullpath to the point cloud.
    */
   void loadCloudFromPcdFile(const std::string& filename);
+
+  /*!
+   * Loads the point cloud received on a topic callback into memory
+   * @param[in] point cloud ROS message
+   */
+  void loadCloudFromROSCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloud);
+
+  /*!
+   * Point Cloud Callback
+   * @param[in] TODO
+   */
+  void mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloudMessage);
 
   /*!
    * Allows the user to set the input cloud
@@ -196,6 +230,18 @@ class GridMapPclLoader {
 
   // Class that handles point cloud processing
   grid_map_pcl::PointcloudProcessor pointcloudProcessor_;
+
+  // Grid Map publisher
+  ros::Publisher gridMapPub_;
+  ros::Publisher testCloudPub_;
+
+  // Point Cloud Subscriber
+  ros::Subscriber mapPCLSub_;
+
+  // ROS Node Handle
+  ros::NodeHandle nodeHandle_;
+
+  tf::TransformListener tfListener_;
 };
 
 }  // namespace grid_map
