@@ -32,7 +32,7 @@ GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
   nodeHandle_.param<std::string>("map_frame", mapFrame_, "map");
 
   // Pub
-  gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>(inputPointcloudTopicName_ + "_grid_mapped", 1, true);
+  gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>(inputPointcloudTopicName_ + "_surface_grid", 1, true);
   // Sub
   mapPCLSub_ = nodeHandle.subscribe(inputPointcloudTopicName_, 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
 }
