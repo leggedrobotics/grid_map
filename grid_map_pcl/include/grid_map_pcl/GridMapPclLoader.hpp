@@ -225,7 +225,6 @@ class GridMapPclLoader {
 
   // Grid Map publisher
   ros::Publisher gridMapPub_;
-  ros::Publisher testCloudPub_;
 
   // Point Cloud Subscriber
   ros::Subscriber mapPCLSub_;
@@ -233,6 +232,7 @@ class GridMapPclLoader {
   // ROS Node Handle
   ros::NodeHandle nodeHandle_;
 
+  // TF Listener
   tf::TransformListener tfListener_;
 };
 
