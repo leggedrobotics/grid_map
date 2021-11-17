@@ -54,6 +54,9 @@ class GridMapPclLoader {
    */
   void loadCloudFromPcdFile(const std::string& filename);
 
+  // TODO description:
+  std::string getParameterPath();
+
   /*!
    * Loads the point cloud received on a topic callback into memory
    * @param[in] point cloud ROS message
@@ -231,6 +234,8 @@ class GridMapPclLoader {
   std::string inputPointcloudTopicName_;
   std::string inputPointcloudFrameId_;
   std::string mapFrame_;
+  std::string parameterPackage_;
+  std::string parameterPath_;
 };
 
 }  // namespace grid_map

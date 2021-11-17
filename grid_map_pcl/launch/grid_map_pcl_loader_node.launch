@@ -11,6 +11,8 @@
   <arg name="input_point_cloud_frame_id"       default="camera_init" />
   <arg name="prefix"                           default="" />
   <arg name="set_verbosity_to_debug"           default="false" />
+  <arg name="parameter_package"                default="grid_map_pcl" />
+  <arg name="parameter_path"                   default="config/parameters.yaml" />
     
   <node name="grid_map_pcl_loader_node" pkg="grid_map_pcl"
       type="grid_map_pcl_loader_node" output="screen" launch-prefix="$(arg prefix)">
@@ -24,5 +26,7 @@
     <param name="set_verbosity_to_debug"        type="bool"   value="$(arg set_verbosity_to_debug)" />
     <param name="input_point_cloud_topic_name"  type="string" value="$(arg input_point_cloud_topic_name)" />
     <param name="input_point_cloud_frame_id"    type="string" value="$(arg input_point_cloud_frame_id)" />
+    <param name="parameter_package"             type="string" value="$(arg parameter_package)" />
+    <param name="parameter_path"                type="string" value="$(arg parameter_path)" />
   </node>
 </launch>

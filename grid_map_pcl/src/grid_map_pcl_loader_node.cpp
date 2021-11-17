@@ -23,20 +23,7 @@ int main(int argc, char** argv) {
 
   grid_map::GridMapPclLoader gridMapPclLoader(nh);
 
-  gridMapPclLoader.loadParameters(gm::getParameterPath());
-
-  /*gm::processPointcloud(&gridMapPclLoader, nh);
-
-  grid_map::GridMap gridMap = gridMapPclLoader.getGridMap();
-  gridMap.setFrameId(gm::getMapFrame(nh));
-
-  gm::saveGridMap(gridMap, nh, gm::getMapRosbagTopic(nh));
-
-  // publish grid map
-
-  grid_map_msgs::GridMap msg;
-  grid_map::GridMapRosConverter::toMessage(gridMap, msg);
-  gridMapPub.publish(msg);*/
+  gridMapPclLoader.loadParameters(gridMapPclLoader.getParameterPath());
 
   // run
   ros::spin();

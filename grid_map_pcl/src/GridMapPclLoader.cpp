@@ -14,6 +14,7 @@
 
 #include <pcl/common/io.h>
 #include <ros/console.h>
+#include <ros/package.h>
 
 #include <grid_map_core/GridMapMath.hpp>
 
@@ -31,6 +32,8 @@ GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
   nodeHandle_.param<std::string>("input_pointcloud_topic_name", inputPointcloudTopicName_, "/loam/map");
   nodeHandle_.param<std::string>("input_pointcloud_frame_id", inputPointcloudFrameId_, "camera_init");
   nodeHandle_.param<std::string>("map_frame", mapFrame_, "map");
+  nodeHandle_.param<std::string>("parameter_package", parameterPackage_, "grid_map_pcl");
+  nodeHandle_.param<std::string>("parameter_path", parameterPath_, "config/parameters.yaml");
 
   // Pub
   gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>(inputPointcloudTopicName_ + "_surface_grid", 1, true);
@@ -47,6 +50,11 @@ void GridMapPclLoader::loadCloudFromPcdFile(const std::string& filename) {
   Pointcloud::Ptr inputCloud(new pcl::PointCloud<pcl::PointXYZ>);
   inputCloud = grid_map_pcl::loadPointcloudFromPcd(filename);
   setInputCloud(inputCloud);
+}
+
+std::string GridMapPclLoader::getParameterPath() {
+  std::string filePath = ros::package::getPath(parameterPackage_) + "/" + parameterPath_;
+  return filePath;
 }
 
 void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloud) {
