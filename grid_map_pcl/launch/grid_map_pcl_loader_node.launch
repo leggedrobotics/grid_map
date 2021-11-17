@@ -7,6 +7,7 @@
   <arg name="output_grid_map"        default="elevation_map.bag" />
   <arg name="map_frame"              default="map" />
   <arg name="map_layer_name"         default="elevation" />
+  <arg name="point_cloud_topic_name" default="/loam/map" />
   <arg name="prefix"                 default=""/>
   <arg name="set_verbosity_to_debug" default="false"/>
     
@@ -19,6 +20,7 @@
     <param name="output_grid_map"         type="string" value="$(arg output_grid_map)" />
     <param name="map_frame"               type="string" value="$(arg map_frame)" />
     <param name="map_layer_name"          type="string" value="$(arg map_layer_name)" />
-    <param name="set_verbosity_to_debug"  type="bool" value="$(arg set_verbosity_to_debug)" />
+    <param name="set_verbosity_to_debug"  type="bool"   value="$(arg set_verbosity_to_debug)" />
+    <param name="point_cloud_topic_name"  type="string" value="$(arg point_cloud_topic_name)" />
   </node>
 </launch>

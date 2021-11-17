@@ -25,10 +25,13 @@ namespace grid_map {
 GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
   // nh
   nodeHandle_ = nodeHandle;
+  // Get topic name from params
+  std::string pointcloudTopicName;
+  nodeHandle_.param<std::string>("point_cloud_topic_name", pointcloudTopicName, "/loam/map");
   // Pub
   gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>("grid_map_from_raw_pointcloud", 1, true);
   // Sub
-  mapPCLSub_ = nodeHandle.subscribe("/loam/map", 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
+  mapPCLSub_ = nodeHandle.subscribe(pointcloudTopicName, 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
 }
 
 const grid_map::GridMap& GridMapPclLoader::getGridMap() const {

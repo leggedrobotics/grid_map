@@ -31,7 +31,6 @@ pcl_grid_map_extraction:
   grid_map:
     min_num_points_per_cell: 1
     resolution: 0.3
-  point_cloud_topic_name: /loam/map
 
     
        
