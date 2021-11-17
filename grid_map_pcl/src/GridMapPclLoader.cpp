@@ -12,6 +12,9 @@
 #include <omp.h>
 #endif
 
+#include <pcl/common/io.h>
+#include <ros/console.h>
+
 #include <grid_map_core/GridMapMath.hpp>
 
 #include "grid_map_pcl/GridMapPclLoader.hpp"
@@ -22,6 +25,7 @@ namespace grid_map {
 GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
   // nh
   nodeHandle_ = nodeHandle;
+
   // Get params
   std::string pointcloudTopicName;
   nodeHandle_.param<std::string>("input_pointcloud_topic_name", inputPointcloudTopicName_, "/loam/map");
@@ -30,6 +34,7 @@ GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
 
   // Pub
   gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>(inputPointcloudTopicName_ + "_surface_grid", 1, true);
+
   // Sub
   mapPCLSub_ = nodeHandle.subscribe(inputPointcloudTopicName_, 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
 }
@@ -50,7 +55,7 @@ void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::
 
   pcl::fromROSMsg(*mapCloud, *inputCloud);
 
-  // Directly look up lidar to IMU transform for usage in calibration files
+  // Lookup tf from input-pointcloud frame to map frame
   tf::StampedTransform camerainit2mapTF;
   try {
     tfListener_.waitForTransform(mapFrame_, inputPointcloudFrameId_, ros::Time(0), ros::Duration(0.1));
@@ -60,11 +65,13 @@ void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::
     return;
   }
 
-  Eigen::Affine3d affine_transform = Eigen::Affine3d::Identity();
+  // Prepare affine transform
+  Eigen::Affine3d affine_transform = Eigen::Affine3d::Identity();    // TODO: (timon) Add translational part here as well
   Eigen::Quaterniond q(camerainit2mapTF.getRotation().w(), camerainit2mapTF.getRotation().x(), camerainit2mapTF.getRotation().y(),
                        camerainit2mapTF.getRotation().z());
   affine_transform.rotate(q);
 
+  // Transform pointcloud to output frame
   pcl::transformPointCloud(*inputCloud, *inputCloudTransformed, affine_transform);
   inputCloudTransformed->header.frame_id = mapFrame_;
 
