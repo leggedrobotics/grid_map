@@ -234,6 +234,11 @@ class GridMapPclLoader {
 
   // TF Listener
   tf::TransformListener tfListener_;
+
+  // ROS helpers
+  std::string inputPointcloudTopicName_;
+  std::string inputPointcloudFrameId_;
+  std::string mapFrame_;
 };
 
 }  // namespace grid_map

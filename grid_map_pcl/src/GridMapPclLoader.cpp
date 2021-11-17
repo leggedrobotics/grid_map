@@ -25,13 +25,16 @@ namespace grid_map {
 GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
   // nh
   nodeHandle_ = nodeHandle;
-  // Get topic name from params
+  // Get params
   std::string pointcloudTopicName;
-  nodeHandle_.param<std::string>("point_cloud_topic_name", pointcloudTopicName, "/loam/map");
+  nodeHandle_.param<std::string>("input_pointcloud_topic_name", inputPointcloudTopicName_, "/loam/map");
+  nodeHandle_.param<std::string>("input_pointcloud_frame_id", inputPointcloudFrameId_, "camera_init");
+  nodeHandle_.param<std::string>("map_frame", mapFrame_, "map");
+
   // Pub
-  gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>("grid_map_from_raw_pointcloud", 1, true);
+  gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>(inputPointcloudTopicName_ + "_grid_mapped", 1, true);
   // Sub
-  mapPCLSub_ = nodeHandle.subscribe(pointcloudTopicName, 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
+  mapPCLSub_ = nodeHandle.subscribe(inputPointcloudTopicName_, 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
 }
 
 const grid_map::GridMap& GridMapPclLoader::getGridMap() const {
@@ -53,8 +56,8 @@ void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::
   // Directly look up lidar to IMU transform for usage in calibration files
   tf::StampedTransform camerainit2mapTF;
   try {
-    tfListener_.waitForTransform("map", "camera_init", ros::Time(0), ros::Duration(0.1));
-    tfListener_.lookupTransform("map", "camera_init", ros::Time(0), camerainit2mapTF);
+    tfListener_.waitForTransform(mapFrame_, inputPointcloudFrameId_, ros::Time(0), ros::Duration(0.1));
+    tfListener_.lookupTransform(mapFrame_, inputPointcloudFrameId_, ros::Time(0), camerainit2mapTF);
   } catch (tf::TransformException& ex) {
     ROS_WARN("%s", ex.what());
     return;
@@ -66,7 +69,7 @@ void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::
   affine_transform.rotate(q);
 
   pcl::transformPointCloud(*inputCloud, *inputCloudTransformed, affine_transform);
-  inputCloudTransformed->header.frame_id = "map";
+  inputCloudTransformed->header.frame_id = mapFrame_;
 
   setInputCloud(inputCloudTransformed);
 }

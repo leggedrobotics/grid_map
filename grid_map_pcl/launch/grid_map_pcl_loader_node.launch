@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <launch>
-  <arg name="folder_path"            default="$(find grid_map_pcl)/test/test_data"/>
-  <arg name="pcd_filename"           default="plane_noisy.pcd" />
-  <arg name="map_rosbag_topic"       default="grid_map" />
-  <arg name="output_grid_map"        default="elevation_map.bag" />
-  <arg name="map_frame"              default="map" />
-  <arg name="map_layer_name"         default="elevation" />
-  <arg name="point_cloud_topic_name" default="/loam/map" />
-  <arg name="prefix"                 default=""/>
-  <arg name="set_verbosity_to_debug" default="false"/>
+  <arg name="folder_path"                      default="$(find grid_map_pcl)/test/test_data"/>
+  <arg name="pcd_filename"                     default="plane_noisy.pcd" />
+  <arg name="map_rosbag_topic"                 default="grid_map" />
+  <arg name="output_grid_map"                  default="elevation_map.bag" />
+  <arg name="map_frame"                        default="map" />
+  <arg name="map_layer_name"                   default="elevation" />
+  <arg name="input_point_cloud_topic_name"     default="/loam/map" />
+  <arg name="input_point_cloud_frame_id"       default="camera_init" />
+  <arg name="prefix"                           default=""/>
+  <arg name="set_verbosity_to_debug"           default="false"/>
     
   <node name="grid_map_pcl_loader_node" pkg="grid_map_pcl"
       type="grid_map_pcl_loader_node" output="screen" launch-prefix="$(arg prefix)">
