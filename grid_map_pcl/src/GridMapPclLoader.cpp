@@ -12,9 +12,6 @@
 #include <omp.h>
 #endif
 
-#include <pcl/common/io.h>
-#include <ros/console.h>
-
 #include <grid_map_core/GridMapMath.hpp>
 
 #include "grid_map_pcl/GridMapPclLoader.hpp"

@@ -18,18 +18,10 @@
 #include "grid_map_pcl/PclLoaderParameters.hpp"
 #include "grid_map_pcl/PointcloudProcessor.hpp"
 
-#include <pcl_conversions/pcl_conversions.h>
-#include <sensor_msgs/PointCloud2.h>
-
-#include <pcl/io/pcd_io.h>
-#include <pcl/pcl_macros.h>
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-
-// CUSTOMIZATION
 #include <pcl/common/transforms.h>
+#include <pcl_conversions/pcl_conversions.h>
+
 #include <tf/transform_listener.h>
-// CUSTOMIZATION
 
 namespace grid_map {
 
