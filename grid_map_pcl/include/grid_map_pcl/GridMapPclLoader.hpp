@@ -53,15 +53,7 @@ class GridMapPclLoader {
   using Point = ::pcl::PointXYZ;
   using Pointcloud = ::pcl::PointCloud<Point>;
 
-  GridMapPclLoader(ros::NodeHandle& nodeHandle) {
-    // nh
-    nodeHandle_ = nodeHandle;
-    // Pub
-    gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>("grid_map_from_raw_pointcloud", 1, true);
-    testCloudPub_ = nodeHandle.advertise<sensor_msgs::PointCloud2>("test_cloudy", 1, true);
-    // Sub
-    mapPCLSub_ = nodeHandle.subscribe("/loam/map", 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
-  }
+  GridMapPclLoader(ros::NodeHandle& nodeHandle);
   ~GridMapPclLoader() = default;
 
   /*!

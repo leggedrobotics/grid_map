@@ -22,6 +22,16 @@
 
 namespace grid_map {
 
+GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
+  // nh
+  nodeHandle_ = nodeHandle;
+  // Pub
+  gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>("grid_map_from_raw_pointcloud", 1, true);
+  testCloudPub_ = nodeHandle.advertise<sensor_msgs::PointCloud2>("test_cloudy", 1, true);
+  // Sub
+  mapPCLSub_ = nodeHandle.subscribe("/loam/map", 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
+}
+
 const grid_map::GridMap& GridMapPclLoader::getGridMap() const {
   return workingGridMap_;
 }
@@ -60,7 +70,6 @@ void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::
 }
 
 void GridMapPclLoader::mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloudMessage) {
-
   loadCloudFromROSCallback(mapCloudMessage);
 
   grid_map::grid_map_pcl::processPointcloud(this, nodeHandle_);
