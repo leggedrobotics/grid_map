@@ -69,6 +69,11 @@ class GridMapPclLoader {
    */
   void mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloudMessage);
 
+  grid_map::GridMap createInterpolatedMapFromDataMap(const grid_map::GridMap& dataMap, double desiredResolution);
+
+  void interpolateInputMap(const grid_map::GridMap& dataMap, grid_map::InterpolationMethods interpolationMethod,
+                           grid_map::GridMap* interpolatedMap);
+
   /*!
    * Allows the user to set the input cloud
    * @param[in] pointer to the input point cloud.
@@ -236,6 +241,14 @@ class GridMapPclLoader {
   std::string mapFrame_;
   std::string parameterPackage_;
   std::string parameterPath_;
+
+  grid_map::GridMap interpolatedMap_;
+
+  std::map<std::string, grid_map::InterpolationMethods> interpolationMethods = {
+      {"Nearest", grid_map::InterpolationMethods::INTER_NEAREST},
+      {"Linear", grid_map::InterpolationMethods::INTER_LINEAR},
+      {"Cubic_convolution", grid_map::InterpolationMethods::INTER_CUBIC_CONVOLUTION},
+      {"Cubic", grid_map::InterpolationMethods::INTER_CUBIC}};
 };
 
 }  // namespace grid_map

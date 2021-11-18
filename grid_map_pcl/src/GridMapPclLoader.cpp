@@ -74,7 +74,7 @@ void GridMapPclLoader::loadCloudFromROSCallback(const sensor_msgs::PointCloud2::
   }
 
   // Prepare affine transform
-  Eigen::Affine3d affine_transform = Eigen::Affine3d::Identity();    // TODO: (timon) Add translational part here as well
+  Eigen::Affine3d affine_transform = Eigen::Affine3d::Identity();  // TODO: (timon) Add translational part here as well
   Eigen::Quaterniond q(camerainit2mapTF.getRotation().w(), camerainit2mapTF.getRotation().x(), camerainit2mapTF.getRotation().y(),
                        camerainit2mapTF.getRotation().z());
   affine_transform.rotate(q);
@@ -94,15 +94,44 @@ void GridMapPclLoader::mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
   grid_map::GridMap gridMap = getGridMap();
   gridMap.setFrameId(grid_map::grid_map_pcl::getMapFrame(nodeHandle_));
 
+  bool interpolate = true;
+  if (interpolate) {
+    // If interpolation, then here!
+    interpolatedMap_ = createInterpolatedMapFromDataMap(gridMap, 0.4);
+    interpolateInputMap(gridMap, interpolationMethods.at("Cubic_convolution"),
+                        &interpolatedMap_);  // inter meths : Nearest, Linear, Cubic_convolution, Cubic
+  }
+
   // publish grid map
   grid_map_msgs::GridMap msg;
-  grid_map::GridMapRosConverter::toMessage(gridMap, msg);
+  grid_map::GridMapRosConverter::toMessage(interpolatedMap_, msg);
   gridMapPub_.publish(msg);
 }
 
 void GridMapPclLoader::setInputCloud(Pointcloud::ConstPtr inputCloud) {
   setRawInputCloud(inputCloud);
   setWorkingCloud(inputCloud);
+}
+
+grid_map::GridMap GridMapPclLoader::createInterpolatedMapFromDataMap(const grid_map::GridMap& dataMap, double desiredResolution) {
+  grid_map::GridMap interpolatedMap;
+  interpolatedMap.setGeometry(dataMap.getLength(), desiredResolution, dataMap.getPosition());
+  const std::string& layer = "elevation";
+  interpolatedMap.add(layer, 0.0);
+  interpolatedMap.setFrameId(dataMap.getFrameId());
+
+  return interpolatedMap;
+}
+
+void GridMapPclLoader::interpolateInputMap(const grid_map::GridMap& dataMap, grid_map::InterpolationMethods interpolationMethod,
+                                           grid_map::GridMap* interpolatedMap) {
+  for (grid_map::GridMapIterator iterator(*interpolatedMap); !iterator.isPastEnd(); ++iterator) {
+    const grid_map::Index index(*iterator);
+    grid_map::Position pos;
+    interpolatedMap->getPosition(index, pos);
+    const double interpolatedHeight = dataMap.atPosition("elevation", pos, interpolationMethod);
+    interpolatedMap->at("elevation", index) = interpolatedHeight;
+  }
 }
 
 void GridMapPclLoader::setRawInputCloud(Pointcloud::ConstPtr rawInputCloud) {
