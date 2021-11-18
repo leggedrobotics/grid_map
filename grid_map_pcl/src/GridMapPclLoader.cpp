@@ -23,7 +23,7 @@
 
 namespace grid_map {
 
-GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
+GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) : filterChain_("grid_map::GridMap") {
   // nh
   nodeHandle_ = nodeHandle;
 
@@ -40,6 +40,12 @@ GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) {
 
   // Sub
   mapPCLSub_ = nodeHandle.subscribe(inputPointcloudTopicName_, 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
+
+  // Setup filter chain.
+  if (!filterChain_.configure("grid_map_filters", nodeHandle)) {
+    ROS_ERROR("Could not configure the filter chain!");
+    return;
+  }
 }
 
 const grid_map::GridMap& GridMapPclLoader::getGridMap() const {
@@ -94,11 +100,23 @@ void GridMapPclLoader::mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
   grid_map::GridMap gridMap = getGridMap();
   gridMap.setFrameId(grid_map::grid_map_pcl::getMapFrame(nodeHandle_));
 
+  filteredMap_.add("elevation", 0.0);
+  filteredMap_.add("elevation_inpainted", 0.0);
+  // Apply filter chain.
+  bool hole_filling_filter = true;
+  if (hole_filling_filter) {
+    if (!filterChain_.update(gridMap, filteredMap_)) {
+      ROS_ERROR("Could not update the grid map filter chain!");
+      return;
+    }
+  }
+
+  // Apply interpolation
   bool interpolate = true;
   if (interpolate) {
     // If interpolation, then here!
-    interpolatedMap_ = createInterpolatedMapFromDataMap(gridMap, 0.4);
-    interpolateInputMap(gridMap, interpolationMethods.at("Cubic_convolution"),
+    interpolatedMap_ = createInterpolatedMapFromDataMap(filteredMap_, 0.4);
+    interpolateInputMap(filteredMap_, interpolationMethods.at("Cubic_convolution"),
                         &interpolatedMap_);  // inter meths : Nearest, Linear, Cubic_convolution, Cubic
   }
 
@@ -129,7 +147,7 @@ void GridMapPclLoader::interpolateInputMap(const grid_map::GridMap& dataMap, gri
     const grid_map::Index index(*iterator);
     grid_map::Position pos;
     interpolatedMap->getPosition(index, pos);
-    const double interpolatedHeight = dataMap.atPosition("elevation", pos, interpolationMethod);
+    const double interpolatedHeight = dataMap.atPosition("elevation_inpainted", pos, interpolationMethod);
     interpolatedMap->at("elevation", index) = interpolatedHeight;
   }
 }

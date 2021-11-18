@@ -1,0 +1,8 @@
+grid_map_filters:
+  # Fill holes in the map with inpainting.
+  - name: inpaint
+    type: gridMapCv/InpaintFilter
+    params:
+      input_layer: elevation
+      output_layer: elevation
+      radius: 0.25

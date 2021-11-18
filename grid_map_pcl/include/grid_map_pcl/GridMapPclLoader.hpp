@@ -21,6 +21,8 @@
 #include <pcl/common/transforms.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <filters/filter_chain.hpp>
+
 #include <tf/transform_listener.h>
 
 namespace grid_map {
@@ -243,6 +245,8 @@ class GridMapPclLoader {
   std::string parameterPath_;
 
   grid_map::GridMap interpolatedMap_;
+  grid_map::GridMap filteredMap_;
+  filters::FilterChain<grid_map::GridMap> filterChain_;
 
   std::map<std::string, grid_map::InterpolationMethods> interpolationMethods = {
       {"Nearest", grid_map::InterpolationMethods::INTER_NEAREST},
