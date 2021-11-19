@@ -23,7 +23,8 @@
 
 namespace grid_map {
 
-GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle) : filterChain_("grid_map::GridMap") {
+GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle)
+    : filterChain_("grid_map::GridMap"), filteredMap_({"elevation", "elevation_inpainted"}) {
   // nh
   nodeHandle_ = nodeHandle;
 
@@ -100,8 +101,6 @@ void GridMapPclLoader::mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
   grid_map::GridMap gridMap = getGridMap();
   gridMap.setFrameId(grid_map::grid_map_pcl::getMapFrame(nodeHandle_));
 
-  filteredMap_.add("elevation", 0.0);
-  filteredMap_.add("elevation_inpainted", 0.0);
   // Apply filter chain.
   bool hole_filling_filter = true;
   if (hole_filling_filter) {
@@ -115,7 +114,7 @@ void GridMapPclLoader::mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
   bool interpolate = true;
   if (interpolate) {
     // If interpolation, then here!
-    interpolatedMap_ = createInterpolatedMapFromDataMap(filteredMap_, 0.4);
+    interpolatedMap_ = createInterpolatedMapFromDataMap(filteredMap_, 0.35);
     interpolateInputMap(filteredMap_, interpolationMethods.at("Cubic_convolution"),
                         &interpolatedMap_);  // inter meths : Nearest, Linear, Cubic_convolution, Cubic
   }
