@@ -30,6 +30,6 @@ pcl_grid_map_extraction:
     cropping_limit_z_min: -1000.0
   grid_map:
     min_num_points_per_cell: 1
-    resolution: 0.45
-  interpolation:
     resolution: 0.35
+  interpolation:
+    resolution: 0.2
