@@ -89,7 +89,7 @@ void saveGridMap(const grid_map::GridMap& gridMap, const ros::NodeHandle& nh, co
 inline void printTimeElapsedToRosInfoStream(const std::chrono::system_clock::time_point& start, const std::string& prefix) {
   const auto stop = std::chrono::high_resolution_clock::now();
   const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() / 1000.0;
-  ROS_INFO_STREAM(prefix << duration << " sec");
+  // ROS_INFO_STREAM(prefix << duration << " sec");
 }
 
 void processPointcloud(grid_map::GridMapPclLoader* gridMapPclLoader, const ros::NodeHandle& nh) {
