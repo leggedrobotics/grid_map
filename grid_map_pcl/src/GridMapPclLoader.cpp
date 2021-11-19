@@ -148,6 +148,7 @@ void GridMapPclLoader::setInputCloud(Pointcloud::ConstPtr inputCloud) {
 }
 
 grid_map::GridMap GridMapPclLoader::postProcessGridMap(const grid_map::GridMap& gridMap) {
+  
   // Apply filter chain.
   bool hole_filling_filter = true;
   if (hole_filling_filter) {
