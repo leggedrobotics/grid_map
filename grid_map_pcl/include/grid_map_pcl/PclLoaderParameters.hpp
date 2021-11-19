@@ -54,6 +54,10 @@ class PclLoaderParameters {
     double croppingLimitZMin_ = -2.0;
   };
 
+  struct InterpolationParameters {
+    double resolution_ = 0.35;
+  };
+
   struct Parameters {
     unsigned int numThreads_ = 4;
     RigidBodyTransformation cloudTransformation_;
@@ -61,6 +65,7 @@ class PclLoaderParameters {
     ClusterExtractionParameters clusterExtraction_;
     DownsamplingParameters downsampling_;
     CroppingParameters cropping_;
+    InterpolationParameters interpolation_;
     GridMapParameters gridMap_;
   };
 

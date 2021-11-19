@@ -114,7 +114,7 @@ void GridMapPclLoader::mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
   bool interpolate = true;
   if (interpolate) {
     // If interpolation, then here!
-    interpolatedMap_ = createInterpolatedMapFromDataMap(filteredMap_, 0.35);
+    interpolatedMap_ = createInterpolatedMapFromDataMap(filteredMap_, params_.get().interpolation_.resolution_);
     interpolateInputMap(filteredMap_, interpolationMethods.at("Cubic_convolution"),
                         &interpolatedMap_);  // inter meths : Nearest, Linear, Cubic_convolution, Cubic
   }

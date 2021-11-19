@@ -48,6 +48,8 @@ void PclLoaderParameters::handleYamlNode(const YAML::Node& yamlNode) {
   parameters_.cropping_.isCroppingInZ_ = yamlNode[prefix]["cropping"]["is_cropping_in_z"].as<bool>();
   parameters_.cropping_.croppingLimitZMax_ = yamlNode[prefix]["cropping"]["cropping_limit_z_max"].as<double>();
   parameters_.cropping_.croppingLimitZMin_ = yamlNode[prefix]["cropping"]["cropping_limit_z_min"].as<double>();
+
+  parameters_.interpolation_.resolution_ = yamlNode[prefix]["interpolation"]["resolution"].as<double>();
 }
 
 bool PclLoaderParameters::loadParameters(const std::string& filename) {
