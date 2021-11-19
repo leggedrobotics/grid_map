@@ -130,6 +130,26 @@ void GridMapPclLoader::setInputCloud(Pointcloud::ConstPtr inputCloud) {
   setWorkingCloud(inputCloud);
 }
 
+grid_map::GridMap GridMapPclLoader::postProcessGridMap(const grid_map::GridMap& gridMap) {
+  // Apply filter chain.
+  bool hole_filling_filter = true;
+  if (hole_filling_filter) {
+    if (!filterChain_.update(gridMap, filteredMap_)) {
+      ROS_ERROR("Could not update the grid map filter chain!");
+    }
+  }
+
+  // Apply interpolation
+  bool interpolate = true;
+  if (interpolate) {
+    // If interpolation, then here!
+    interpolatedMap_ = createInterpolatedMapFromDataMap(filteredMap_, params_.get().interpolation_.resolution_);
+    interpolateInputMap(filteredMap_, interpolationMethods.at("Cubic_convolution"),
+                        &interpolatedMap_);  // inter meths : Nearest, Linear, Cubic_convolution, Cubic
+  }
+  return interpolatedMap_;
+}
+
 grid_map::GridMap GridMapPclLoader::createInterpolatedMapFromDataMap(const grid_map::GridMap& dataMap, double desiredResolution) {
   grid_map::GridMap interpolatedMap;
   interpolatedMap.setGeometry(dataMap.getLength(), desiredResolution, dataMap.getPosition());

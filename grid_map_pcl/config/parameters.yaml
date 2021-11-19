@@ -7,15 +7,15 @@ pcl_grid_map_extraction:
       z: 0.0
     rotation: #intrinsic rotation X-Y-Z (r-p-y)sequence
       r: 0.0
-      p: 0.0
-      y: 0.0
+      p: -1.570796
+      y: -1.570796
   cluster_extraction:
-    cluster_tolerance: 0.08
+    cluster_tolerance: 2.0
     min_num_points: 1
     max_num_points: 1000000
     use_max_height_as_cell_elevation: false
   outlier_removal:
-    is_remove_outliers: false
+    is_remove_outliers: true
     mean_K: 10
     stddev_threshold: 1.0
   downsampling:
@@ -30,7 +30,6 @@ pcl_grid_map_extraction:
     cropping_limit_z_min: -1000.0
   grid_map:
     min_num_points_per_cell: 1
-    resolution: 0.3
-
-    
-       
+    resolution: 0.45
+  interpolation:
+    resolution: 0.35

@@ -1,8 +1,14 @@
 grid_map_filters:
+  - name: first
+    type: gridMapFilters/MockFilter
+    params:
+      processing_time: 100
+  - name: buffer_normalizer
+    type: gridMapFilters/BufferNormalizerFilter
   # Fill holes in the map with inpainting.
   - name: inpaint
     type: gridMapCv/InpaintFilter
     params:
       input_layer: elevation
-      output_layer: elevation
-      radius: 0.25
+      output_layer: elevation_inpainted
+      radius: 0.5

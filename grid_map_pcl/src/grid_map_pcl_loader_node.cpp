@@ -21,9 +21,31 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh("~");
   gm::setVerbosityLevelToDebugIfFlagSet(nh);
 
+  ros::Publisher gridMapPub;
+  gridMapPub = nh.advertise<grid_map_msgs::GridMap>("grid_map_from_raw_pointcloud", 1, true);
+
   grid_map::GridMapPclLoader gridMapPclLoader(nh);
 
   gridMapPclLoader.loadParameters(gridMapPclLoader.getParameterPath());
+
+  const std::string pathToCloud = gm::getPcdFilePath(nh);
+  gridMapPclLoader.loadCloudFromPcdFile(pathToCloud);
+
+  gm::processPointcloud(&gridMapPclLoader, nh);
+
+  grid_map::GridMap gridMap = gridMapPclLoader.getGridMap();
+
+  gridMap.setFrameId(gm::getMapFrame(nh));
+
+  grid_map::GridMap ouputGridMap = gridMapPclLoader.postProcessGridMap(gridMap);
+
+  gm::saveGridMap(ouputGridMap, nh, gm::getMapRosbagTopic(nh));
+
+  // publish grid map
+
+  grid_map_msgs::GridMap msg;
+  grid_map::GridMapRosConverter::toMessage(ouputGridMap, msg);
+  gridMapPub.publish(msg);
 
   // run
   ros::spin();

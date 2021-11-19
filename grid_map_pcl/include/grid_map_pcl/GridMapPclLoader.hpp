@@ -76,6 +76,8 @@ class GridMapPclLoader {
   void interpolateInputMap(const grid_map::GridMap& dataMap, grid_map::InterpolationMethods interpolationMethod,
                            grid_map::GridMap* interpolatedMap);
 
+  grid_map::GridMap postProcessGridMap(const grid_map::GridMap& gridMap);
+
   /*!
    * Allows the user to set the input cloud
    * @param[in] pointer to the input point cloud.
