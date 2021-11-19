@@ -30,17 +30,10 @@ GridMapPclLoader::GridMapPclLoader(ros::NodeHandle& nodeHandle)
 
   // Get params
   std::string pointcloudTopicName;
-  nodeHandle_.param<std::string>("input_pointcloud_topic_name", inputPointcloudTopicName_, "/loam/map");
   nodeHandle_.param<std::string>("input_pointcloud_frame_id", inputPointcloudFrameId_, "camera_init");
   nodeHandle_.param<std::string>("map_frame", mapFrame_, "map");
   nodeHandle_.param<std::string>("parameter_package", parameterPackage_, "grid_map_pcl");
   nodeHandle_.param<std::string>("parameter_path", parameterPath_, "config/parameters.yaml");
-
-  // Pub
-  gridMapPub_ = nodeHandle.advertise<grid_map_msgs::GridMap>(inputPointcloudTopicName_ + "_surface_grid", 1, true);
-
-  // Sub
-  mapPCLSub_ = nodeHandle.subscribe(inputPointcloudTopicName_, 1, &grid_map::GridMapPclLoader::mapCloudCallback, this);
 
   // Setup filter chain.
   if (!filterChain_.configure("grid_map_filters", nodeHandle)) {
@@ -56,7 +49,31 @@ const grid_map::GridMap& GridMapPclLoader::getGridMap() const {
 void GridMapPclLoader::loadCloudFromPcdFile(const std::string& filename) {
   Pointcloud::Ptr inputCloud(new pcl::PointCloud<pcl::PointXYZ>);
   inputCloud = grid_map_pcl::loadPointcloudFromPcd(filename);
-  setInputCloud(inputCloud);
+
+  Pointcloud::Ptr inputCloudTransformed(new pcl::PointCloud<pcl::PointXYZ>);
+
+  // Transform into correct frame:
+  // Lookup tf from input-pointcloud frame to map frame
+  tf::StampedTransform camerainit2mapTF;
+  try {
+    tfListener_.waitForTransform(mapFrame_, inputPointcloudFrameId_, ros::Time(0), ros::Duration(3.0));
+    tfListener_.lookupTransform(mapFrame_, inputPointcloudFrameId_, ros::Time(0), camerainit2mapTF);
+  } catch (tf::TransformException& ex) {
+    ROS_WARN("%s", ex.what());
+    return;
+  }
+
+  // Prepare affine transform
+  Eigen::Affine3d affine_transform = Eigen::Affine3d::Identity();  // TODO: (timon) Add translational part here as well
+  Eigen::Quaterniond q(camerainit2mapTF.getRotation().w(), camerainit2mapTF.getRotation().x(), camerainit2mapTF.getRotation().y(),
+                       camerainit2mapTF.getRotation().z());
+  affine_transform.rotate(q);
+
+  // Transform pointcloud to output frame
+  pcl::transformPointCloud(*inputCloud, *inputCloudTransformed, affine_transform);
+  inputCloudTransformed->header.frame_id = mapFrame_;
+
+  setInputCloud(inputCloudTransformed);
 }
 
 std::string GridMapPclLoader::getParameterPath() {

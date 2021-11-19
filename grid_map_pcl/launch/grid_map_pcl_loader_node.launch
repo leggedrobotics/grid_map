@@ -31,4 +31,10 @@
     <param name="parameter_path"                type="string" value="$(arg parameter_path)" />
   </node>
 
+  <!-- Static transform camera_init to map -->
+  <node pkg="tf" type="static_transform_publisher" name="camera_init_to_map" args="0 0 0 0.500000 0.500000 0.500000 -0.500000 camera_init map 100" />
+
+  <!-- Publishing original Pointcloud for reference -->
+  <node pkg="pcl_ros" type="pcd_to_pointcloud"  name="pcd_publisher" args="$(find grid_map_pcl)/pcd_files/$(arg pcd_filename) 0.1 _frame_id:=camera_init" />
+
 </launch>
