@@ -67,15 +67,30 @@ class GridMapPclLoader {
 
   /*!
    * Point Cloud Callback
-   * @param[in] TODO
+   * @param[in] point cloud ROS message.
    */
   void mapCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& mapCloudMessage);
 
+  /*!
+   * Grid map interpolation
+   * @param[in] input grid map.
+   * @param[in] desired resolution after interpolation.
+   */
   grid_map::GridMap createInterpolatedMapFromDataMap(const grid_map::GridMap& dataMap, double desiredResolution);
 
+  /*!
+   * Grid map interpolation
+   * @param[in] input grid map.
+   * @param[in] interpolation method.
+   * @param[in] interpolated grid map.
+   */
   void interpolateInputMap(const grid_map::GridMap& dataMap, grid_map::InterpolationMethods interpolationMethod,
                            grid_map::GridMap* interpolatedMap);
 
+  /*!
+   * Performs custom post processing steps on the obtained grid map (inpainting and interpolation)
+   * @param[in] reference of the raw grid map.
+   */
   grid_map::GridMap postProcessGridMap(const grid_map::GridMap& gridMap);
 
   /*!
@@ -246,10 +261,14 @@ class GridMapPclLoader {
   std::string parameterPackage_;
   std::string parameterPath_;
 
+  // Additional Grid Maps for post processing steps
   grid_map::GridMap interpolatedMap_;
   grid_map::GridMap filteredMap_;
+
+  // filter chain object for performing inpainting
   filters::FilterChain<grid_map::GridMap> filterChain_;
 
+  // Interpolation method options
   std::map<std::string, grid_map::InterpolationMethods> interpolationMethods = {
       {"Nearest", grid_map::InterpolationMethods::INTER_NEAREST},
       {"Linear", grid_map::InterpolationMethods::INTER_LINEAR},
