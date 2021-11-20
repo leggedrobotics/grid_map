@@ -2,7 +2,7 @@
 
 <launch>
   <arg name="folder_path"                      default="$(find grid_map_pcl)/pcd_files/"/>
-  <arg name="pcd_filename"                     default="1637259556.189640045.pcd" />
+  <arg name="pcd_filename"                     default="pointcloud_map.pcd" />
   <arg name="map_rosbag_topic"                 default="grid_map" />
   <arg name="output_grid_map"                  default="elevation_map.bag" />
   <arg name="map_frame"                        default="map" />
