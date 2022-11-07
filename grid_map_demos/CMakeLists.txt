@@ -80,10 +80,6 @@ add_executable(image_to_gridmap_demo
   src/ImageToGridmapDemo.cpp
 )
 
-add_executable(grid_map_to_image_demo
-  src/grid_map_to_image_demo_node.cpp
-  src/GridmapToImageDemo.cpp
-)
 
 add_executable(octomap_to_gridmap_demo
   src/octomap_to_gridmap_demo_node.cpp
@@ -120,6 +116,11 @@ add_executable(interpolation_demo
   src/InterpolationDemo.cpp
 )
 
+add_executable(gravis_map_manipulation
+  src/gravis_map_manipulation.cpp
+  src/GravisMapManipulation.cpp
+)
+
 ## Specify libraries to link a library or executable target against
 target_link_libraries(
   simple_demo
@@ -138,11 +139,6 @@ target_link_libraries(
 
 target_link_libraries(
   image_to_gridmap_demo
-  ${catkin_LIBRARIES}
-)
-
-target_link_libraries(
-  grid_map_to_image_demo
   ${catkin_LIBRARIES}
 )
 
@@ -188,6 +184,11 @@ target_link_libraries(
   ${catkin_LIBRARIES}
 )
 
+target_link_libraries(
+  gravis_map_manipulation
+  ${catkin_LIBRARIES}
+)
+
 #############
 ## Install ##
 #############
@@ -199,10 +200,9 @@ catkin_install_python(
 
 # Mark executables and/or libraries for installation
 install(
-  TARGETS 
+  TARGETS
     filters_demo
     image_to_gridmap_demo
-    grid_map_to_image_demo
     interpolation_demo
     iterator_benchmark
     iterators_demo
@@ -234,7 +234,6 @@ if(CATKIN_ENABLE_TESTING)
   add_dependencies(${PROJECT_NAME}-test
     filters_demo
     image_to_gridmap_demo
-    grid_map_to_image_demo
     interpolation_demo
     iterator_benchmark
     iterators_demo
