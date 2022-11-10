@@ -1,0 +1,19 @@
+<launch>
+
+
+  <!-- Launch the image to grid map demo node (this provides the input for the filter demo). -->
+  <node pkg="grid_map_demos" type="gravis_map_manipulation" name="gravis_map_manipulation" output="screen">
+    <rosparam command="load" file="$(find grid_map_demos)/config/gravis_map_manipulation.yaml" />
+  </node>
+
+  <!-- Launch the grid map filters demo node. -->
+  <node pkg="grid_map_demos" type="filters_demo" name="grid_map_filter_demo" output="screen">
+    <!-- Input topic -->
+  	<param name="input_topic" value="/gravis_map" />
+  	<!-- Output topic -->
+  	<param name="output_topic" value="/gravis_map/smoothed" />
+  	<!-- Load grid map filter chain configuration -->
+    <rosparam command="load" file="$(find grid_map_demos)/config/filters_demo_filter_chain.yaml" />
+  </node>
+
+</launch>

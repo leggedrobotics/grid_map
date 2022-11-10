@@ -60,7 +60,11 @@ class GravisMapManipulation {
   //! Path where to store the image.
   std::string filePath_;
 
-  ros::Publisher grid_map_pub_;
+  ros::Publisher post_digging_map_pub_;
+
+  grid_map::Position pos_;
+  grid_map::Length len_;
+  double interpolation_alpha_;
 };
 
 }  // namespace grid_map_demos

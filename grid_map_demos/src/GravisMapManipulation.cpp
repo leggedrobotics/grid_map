@@ -15,7 +15,7 @@ GravisMapManipulation::GravisMapManipulation(ros::NodeHandle& nodeHandle)
 {
   readParameters();
   gridMapSubscriber_ = nodeHandle_.subscribe("/planning_map", 1, &GravisMapManipulation::gridMapCallback, this);
-  grid_map_pub_ = nodeHandle_.advertise<grid_map_msgs::GridMap>(
+  post_digging_map_pub_ = nodeHandle_.advertise<grid_map_msgs::GridMap>(
       "/gravis_map", 1);
 }
 
@@ -23,34 +23,57 @@ GravisMapManipulation::~GravisMapManipulation()=default;
 
 void GravisMapManipulation::readParameters()
 {
+  nodeHandle_.param("new_center_x", pos_.x(), -27.8);
+  nodeHandle_.param("new_center_y", pos_.y(), -48.68);
+  nodeHandle_.param("new_length_x", len_.x(), 17.0);
+  nodeHandle_.param("new_length_y", len_.y(), 18.9);
+  nodeHandle_.param("interpolation_alpha", interpolation_alpha_, 0.39);
 }
 
 void GravisMapManipulation::gridMapCallback(const grid_map_msgs::GridMap& msg)
 {
   ROS_INFO("Received!.");
-
-  grid_map::Position pos(-28.17, -48.38);
-  grid_map::Length len(17.0, 18.0);
-  double alpha = 0.39;
+  readParameters();
   bool isSuccess;
   grid_map::GridMap inputGridMap;
 
-
   // Crop
   grid_map::GridMapRosConverter::fromMessage(msg, inputGridMap);
-  grid_map::GridMap subMap = inputGridMap.getSubmap(pos, len, isSuccess);
+  grid_map::GridMap subMap = inputGridMap.getSubmap(pos_, len_, isSuccess);
 
-  // Filter
-  subMap.add("gravis");
+  // Smooth out final map by including planned map
+  subMap.add("post_digging");
   for (grid_map::GridMapIterator iterator(subMap); !iterator.isPastEnd(); ++iterator) {
-    subMap.at("gravis", *iterator) = alpha * subMap.at("elevation", *iterator) + (1.0 - alpha) * subMap.at("desired_elevation", *iterator);
+    subMap.at("post_digging", *iterator) = interpolation_alpha_ * subMap.at("elevation", *iterator) +
+      (1.0 - interpolation_alpha_) * subMap.at("desired_elevation", *iterator);
   }
+
+  // Keep hill on the top lef corner from real scanning to have full elevation
+  for (grid_map::CircleIterator iterator(subMap, grid_map::Position(-18.08, -48.6), 2.9);
+       !iterator.isPastEnd(); ++iterator) {
+    subMap.at("post_digging", *iterator) = subMap.at("elevation", *iterator);
+  }
+/*
+  // Filter points close to bottom edge of the digging area
+  double alpha = 0.2;
+  for (grid_map::PolygonIterator iterator(subMap, grid_map::Polygon(std::vector<grid_map::Position>{
+          {-30.39, -38.8}, {-36.3, -37.32}, {-37.82, -47.49}, {-35.36, -48.93}}));
+       !iterator.isPastEnd(); ++iterator) {
+         subMap.at("post_digging", *iterator) = alpha * subMap.at("elevation", *iterator) +
+           (1.0 - alpha) * subMap.at("desired_elevation", *iterator);
+  }
+
+  // Filter points close on top right edge of the digging area
+  alpha = 0.15;
+  for (grid_map::CircleIterator iterator(subMap, grid_map::Position(-21.53, -57.69), 4.2);
+       !iterator.isPastEnd(); ++iterator) {
+         subMap.at("post_digging", *iterator) = alpha * subMap.at("elevation", *iterator) +
+           (1.0 - alpha) * subMap.at("desired_elevation", *iterator);
+  }*/
 
   grid_map_msgs::GridMap outMsg;
   grid_map::GridMapRosConverter::toMessage(subMap, outMsg);
-  grid_map_pub_.publish(outMsg);
-
-  ros::shutdown();
+  post_digging_map_pub_.publish(outMsg);
 }
 
 } /* namespace */
