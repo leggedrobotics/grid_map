@@ -1,6 +1,11 @@
 grid_map_filters:
-  # Reduce noise with a radial blurring filter.
-  - name: mean_in_radius
+  - name: mean_in_radius_pre_digging
+    type: gridMapFilters/MeanInRadiusFilter
+    params:
+      input_layer: original_elevation
+      output_layer: original_elevation_smooth
+      radius: 0.3
+  - name: mean_in_radius_post
     type: gridMapFilters/MeanInRadiusFilter
     params:
       input_layer: post_digging
