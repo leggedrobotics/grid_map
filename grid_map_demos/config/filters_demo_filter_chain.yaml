@@ -2,8 +2,8 @@ grid_map_filters:
   - name: mean_in_radius_pre_digging
     type: gridMapFilters/MeanInRadiusFilter
     params:
-      input_layer: original_elevation
-      output_layer: original_elevation_smooth
+      input_layer: pre_digging
+      output_layer: pre_digging_smooth
       radius: 0.3
   - name: mean_in_radius_post
     type: gridMapFilters/MeanInRadiusFilter

@@ -43,6 +43,8 @@ void GravisMapManipulation::gridMapCallback(const grid_map_msgs::GridMap& msg)
 
   // Smooth out final map by including planned map
   subMap.add("post_digging");
+  subMap.add("pre_digging");
+  subMap["pre_digging"] = subMap["original_elevation"];
   for (grid_map::GridMapIterator iterator(subMap); !iterator.isPastEnd(); ++iterator) {
     subMap.at("post_digging", *iterator) = interpolation_alpha_ * subMap.at("elevation", *iterator) +
       (1.0 - interpolation_alpha_) * subMap.at("desired_elevation", *iterator);
@@ -53,16 +55,17 @@ void GravisMapManipulation::gridMapCallback(const grid_map_msgs::GridMap& msg)
        !iterator.isPastEnd(); ++iterator) {
     subMap.at("post_digging", *iterator) = subMap.at("elevation", *iterator);
   }
-/*
-  // Filter points close to bottom edge of the digging area
-  double alpha = 0.2;
+  // Remove Lorenzo's car
+  double alpha = 0.7;
   for (grid_map::PolygonIterator iterator(subMap, grid_map::Polygon(std::vector<grid_map::Position>{
-          {-30.39, -38.8}, {-36.3, -37.32}, {-37.82, -47.49}, {-35.36, -48.93}}));
+          {-37.6, -48.2}, {-40.66, -47.16}, {-41.67, -51.14}, {-39.03, -52.34}}));
        !iterator.isPastEnd(); ++iterator) {
          subMap.at("post_digging", *iterator) = alpha * subMap.at("elevation", *iterator) +
            (1.0 - alpha) * subMap.at("desired_elevation", *iterator);
+         subMap.at("pre_digging", *iterator) = subMap.at("post_digging", *iterator);
   }
 
+  /*
   // Filter points close on top right edge of the digging area
   alpha = 0.15;
   for (grid_map::CircleIterator iterator(subMap, grid_map::Position(-21.53, -57.69), 4.2);
