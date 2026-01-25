@@ -8,6 +8,7 @@
 
 #include <limits>
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -96,23 +97,23 @@ grid_map::Matrix SignedDistanceField::getPlanarSignedDistanceField(
   Eigen::Dynamic,
   Eigen::Dynamic> & data) const
 {
-  image<uchar> * input = new image<uchar>(data.rows(), data.cols(), true);
+  image<uchar> input(data.rows(), data.cols(), true);
 
-  for (int y = 0; y < input->height(); y++) {
-    for (int x = 0; x < input->width(); x++) {
-      imRef(input, x, y) = data(x, y);
+  for (int y = 0; y < input.height(); y++) {
+    for (int x = 0; x < input.width(); x++) {
+      imRef((&input), x, y) = data(x, y);
     }
   }
 
   // Compute dt.
-  image<float> * out = dt(input);
+  std::unique_ptr<image<float>> out(dt(&input));
 
   Matrix result(data.rows(), data.cols());
 
   // Take square roots.
   for (int y = 0; y < out->height(); y++) {
     for (int x = 0; x < out->width(); x++) {
-      result(x, y) = sqrt(imRef(out, x, y));
+      result(x, y) = sqrt(imRef(out.get(), x, y));
     }
   }
   return result;
