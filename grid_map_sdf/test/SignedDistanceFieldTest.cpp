@@ -69,6 +69,28 @@ TEST(SignedDistanceField, GetDistanceFlat)
   EXPECT_NEAR(sdf.getDistanceAt(Vector3(pos.x(), pos.y(), 10.0)), 2.5, 0.0001);
 }
 
+TEST(SignedDistanceField, GetDistanceAboveNonAlignedFlatMaximum)
+{
+  GridMap map({"layer"});
+  map.setGeometry(Length(1.0, 1.0), 0.25, Position(0.0, 0.0));
+  map["layer"].setConstant(0.33);
+
+  SignedDistanceField sdf;
+  sdf.calculateSignedDistanceField(map, "layer", 1.25);
+
+  Position position;
+  map.getPosition(Index(0, 0), position);
+  EXPECT_NEAR(
+    sdf.getDistanceAt(Vector3(position.x(), position.y(), 0.58)),
+    0.25, 0.0001);
+  EXPECT_NEAR(
+    sdf.getDistanceAt(Vector3(position.x(), position.y(), 0.83)),
+    0.50, 0.0001);
+  EXPECT_NEAR(
+    sdf.getDistanceAt(Vector3(position.x(), position.y(), 1.33)),
+    1.00, 0.0001);
+}
+
 
 TEST(SignedDistanceField, GetDistance)
 {

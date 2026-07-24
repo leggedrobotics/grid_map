@@ -6,8 +6,9 @@
  *   Institute: ETH Zurich, ANYbotics
  */
 
-#include <limits>
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -49,23 +50,41 @@ void SignedDistanceField::calculateSignedDistanceField(
   if (!std::isfinite(minHeight)) {minHeight = lowestHeight_;}
   float maxHeight = map.maxCoeffOfFinites();
   if (!std::isfinite(maxHeight)) {maxHeight = lowestHeight_;}
+  const float terrainMaxHeight = maxHeight;
 
   // maxHeight, minHeight (TODO Make this an option).
   const float valueForEmptyCells = lowestHeight_;
   for (int i = 0; i < map.size(); ++i) {
     if (std::isnan(map(i))) {map(i) = valueForEmptyCells;}
   }
+  const bool allHeightsFinite = map.array().isFinite().all();
 
   // Height range of the signed distance field is higher than the max height.
   maxHeight += heightClearance;
 
   Matrix sdfElevationAbove = Matrix::Ones(map.rows(), map.cols()) * maxDistance_;
   Matrix sdfLayer = Matrix::Zero(map.rows(), map.cols());
-  std::vector<Matrix> sdf;
   zIndexStartHeight_ = minHeight;
 
   // Calculate signed distance field from bottom.
   for (float h = minHeight; h < maxHeight; h += resolution_) {
+    // Once the sweep is above every finite terrain cell, both planar fields
+    // are uniform. The two distance transforms cannot affect the result: the
+    // existing recurrence only advances each cell's previous distance by one
+    // vertical resolution step. Preserve that recurrence directly.
+    if (allHeightsFinite && h > terrainMaxHeight) {
+      for (int i = 0; i < sdfElevationAbove.size(); ++i) {
+        if (sdfElevationAbove(i) == maxDistance_) {
+          sdfElevationAbove(i) = h - map(i);
+        } else {
+          sdfElevationAbove(i) = sdfLayer(i) + resolution_;
+        }
+        sdfLayer(i) = sdfElevationAbove(i);
+      }
+      data_.push_back(sdfLayer);
+      continue;
+    }
+
     Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> obstacleFreeField = map.array() < h;
     Eigen::Matrix<bool, Eigen::Dynamic,
       Eigen::Dynamic> obstacleField = obstacleFreeField.array() < 1;
