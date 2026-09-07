@@ -1,215 +1,453 @@
 /*
- * SignedDistanceField.hpp
+ * SignedDistanceField.cpp
  *
  *  Created on: Aug 16, 2017
  *     Authors: Takahiro Miki, Peter Fankhauser
  *   Institute: ETH Zurich, ANYbotics
  */
 
+#include "grid_map_sdf/SignedDistanceField.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
-
-#include "grid_map_sdf/SignedDistanceField.hpp"
-#include "grid_map_sdf/distance_transform/dt.hpp"
-
-#include "grid_map_core/GridMap.hpp"
-
 
 namespace grid_map
 {
-
-using namespace distance_transform;  // NOLINT
-
-SignedDistanceField::SignedDistanceField()
-: maxDistance_(std::numeric_limits<float>::max()),
-  zIndexStartHeight_(0.0),
-  resolution_(0.0),
-  lowestHeight_(-1e5)     // We need some precision.
+namespace
 {
+
+Vector3 projectToBox(
+  const Vector3 & point, const Vector3 & minimum,
+  const Vector3 & maximum)
+{
+  return point.cwiseMax(minimum).cwiseMin(maximum);
 }
 
-SignedDistanceField::~SignedDistanceField()
+double squaredDistanceToBox(
+  const Vector3 & point, const Vector3 & minimum,
+  const Vector3 & maximum)
 {
+  return (point - projectToBox(point, minimum, maximum)).squaredNorm();
 }
+
+}  // namespace
+
+struct SignedDistanceField::Data
+{
+  struct Face
+  {
+    Vector3 minimum;
+    Vector3 maximum;
+    Vector3 normal;
+    std::size_t order;
+
+    Vector3 centre() const
+    {
+      Vector3 result = 0.5 * (minimum + maximum);
+      // Unknown/exterior walls extend to +infinity. Their finite lower endpoint
+      // supplies a sorting coordinate; their query bounds remain unbounded.
+      if (!std::isfinite(result.z())) {
+        result.z() = minimum.z();
+      }
+      return result;
+    }
+  };
+
+  struct Node
+  {
+    Vector3 minimum;
+    Vector3 maximum;
+    std::size_t begin;
+    std::size_t end;
+    std::size_t left = 0;
+    std::size_t right = 0;
+  };
+
+  struct Nearest
+  {
+    double squaredDistance;
+    Vector3 point;
+    Vector3 normal;
+    std::size_t order = std::numeric_limits<std::size_t>::max();
+  };
+
+  Matrix elevations;
+  Position minimum;
+  Position maximum;
+  double resolution;
+  double minHeight;
+  double maxHeight;
+  double heightClearance;
+  std::vector<Face> faces;
+  std::vector<Node> nodes;
+
+  double height(int row, int column) const
+  {
+    if (row < 0 || column < 0 || row >= elevations.rows() ||
+      column >= elevations.cols())
+    {
+      return std::numeric_limits<double>::infinity();
+    }
+    const double value = elevations(row, column);
+    return std::isfinite(value) ? value :
+           std::numeric_limits<double>::infinity();
+  }
+
+  bool index(const Position3 & point, Index & result) const
+  {
+    if (!point.allFinite() || point.x() < minimum.x() ||
+      point.x() > maximum.x() || point.y() < minimum.y() ||
+      point.y() > maximum.y())
+    {
+      return false;
+    }
+    result.x() =
+      std::min(static_cast<int>((maximum.x() - point.x()) / resolution),
+                 static_cast<int>(elevations.rows()) - 1);
+    result.y() =
+      std::min(static_cast<int>((maximum.y() - point.y()) / resolution),
+                 static_cast<int>(elevations.cols()) - 1);
+    return std::isfinite(elevations(result.x(), result.y()));
+  }
+
+  void addFace(
+    const Vector3 & lower, const Vector3 & upper,
+    const Vector3 & normal)
+  {
+    faces.push_back({lower, upper, normal, faces.size()});
+  }
+
+  void makeFaces()
+  {
+    const int rows = static_cast<int>(elevations.rows());
+    const int columns = static_cast<int>(elevations.cols());
+    // Merge equal-height runs, including uniform unknown regions. Flat ground
+    // does not need one primitive per cell. No geometric approximation is used.
+    for (int row = 0; row < rows; ++row) {
+      for (int column = 0; column < columns; ) {
+        const double z = height(row, column);
+        int end = column + 1;
+        while (end < columns && height(row, end) == z) {
+          ++end;
+        }
+        if (std::isfinite(z)) {
+          addFace(Vector3(maximum.x() - (row + 1) * resolution,
+                          maximum.y() - end * resolution, z),
+                  Vector3(maximum.x() - row * resolution,
+                          maximum.y() - column * resolution, z),
+                  Vector3::UnitZ());
+        }
+        column = end;
+      }
+    }
+
+    // Every shared edge is visited once. Only the exposed interval between the
+    // adjacent heights belongs to the volume boundary; internal buried faces do
+    // not.
+    for (int row = 0; row <= rows; ++row) {
+      for (int column = 0; column < columns; ) {
+        const double highSide = height(row - 1, column);
+        const double lowSide = height(row, column);
+        int end = column + 1;
+        while (end < columns && height(row - 1, end) == highSide &&
+          height(row, end) == lowSide)
+        {
+          ++end;
+        }
+        if (highSide != lowSide) {
+          const double x = maximum.x() - row * resolution;
+          addFace(Vector3(x, maximum.y() - end * resolution,
+                          std::min(highSide, lowSide)),
+                  Vector3(x, maximum.y() - column * resolution,
+                          std::max(highSide, lowSide)),
+                  highSide > lowSide ? Vector3(-1.0, 0.0, 0.0) :
+                                       Vector3::UnitX());
+        }
+        column = end;
+      }
+    }
+    for (int column = 0; column <= columns; ++column) {
+      for (int row = 0; row < rows; ) {
+        const double highSide = height(row, column - 1);
+        const double lowSide = height(row, column);
+        int end = row + 1;
+        while (end < rows && height(end, column - 1) == highSide &&
+          height(end, column) == lowSide)
+        {
+          ++end;
+        }
+        if (highSide != lowSide) {
+          const double y = maximum.y() - column * resolution;
+          addFace(Vector3(maximum.x() - end * resolution, y,
+                          std::min(highSide, lowSide)),
+                  Vector3(maximum.x() - row * resolution, y,
+                          std::max(highSide, lowSide)),
+                  highSide > lowSide ? Vector3(0.0, -1.0, 0.0) :
+                                       Vector3::UnitY());
+        }
+        row = end;
+      }
+    }
+  }
+
+  std::size_t buildNode(std::size_t begin, std::size_t end)
+  {
+    const double infinity = std::numeric_limits<double>::infinity();
+    Node node{Vector3::Constant(infinity), Vector3::Constant(-infinity), begin,
+      end};
+    Vector3 centreMinimum = node.minimum;
+    Vector3 centreMaximum = node.maximum;
+    for (std::size_t i = begin; i < end; ++i) {
+      node.minimum = node.minimum.cwiseMin(faces[i].minimum);
+      node.maximum = node.maximum.cwiseMax(faces[i].maximum);
+      const Vector3 centre = faces[i].centre();
+      centreMinimum = centreMinimum.cwiseMin(centre);
+      centreMaximum = centreMaximum.cwiseMax(centre);
+    }
+    const std::size_t index = nodes.size();
+    nodes.push_back(node);
+    constexpr std::size_t leafSize = 8;
+    if (end - begin > leafSize) {
+      Eigen::Index axis;
+      (centreMaximum - centreMinimum).maxCoeff(&axis);
+      const std::size_t middle = begin + (end - begin) / 2;
+      std::nth_element(faces.begin() + begin, faces.begin() + middle,
+                       faces.begin() + end,
+        [axis](const Face & lhs, const Face & rhs) {
+          const double a = lhs.centre()(axis);
+          const double b = rhs.centre()(axis);
+          return a == b ? lhs.order < rhs.order : a < b;
+                       });
+      const std::size_t left = buildNode(begin, middle);
+      const std::size_t right = buildNode(middle, end);
+      nodes[index].left = left;
+      nodes[index].right = right;
+    }
+    return index;
+  }
+
+  void findNearest(
+    std::size_t index, const Position3 & point, Nearest & nearest,
+    QueryStatistics *statistics) const
+  {
+    const Node & node = nodes[index];
+    if (statistics != nullptr) {
+      ++statistics->nodesVisited;
+    }
+    if (squaredDistanceToBox(point, node.minimum, node.maximum) >
+      nearest.squaredDistance)
+    {
+      return;
+    }
+    if (node.left == 0) {
+      for (std::size_t i = node.begin; i < node.end; ++i) {
+        const Face & face = faces[i];
+        const Vector3 projection =
+          projectToBox(point, face.minimum, face.maximum);
+        const double squaredDistance = (point - projection).squaredNorm();
+        if (statistics != nullptr) {
+          ++statistics->facesTested;
+        }
+        if (squaredDistance < nearest.squaredDistance ||
+          (squaredDistance == nearest.squaredDistance &&
+          face.order < nearest.order))
+        {
+          nearest = {squaredDistance, projection, face.normal, face.order};
+        }
+      }
+      return;
+    }
+    const Node & left = nodes[node.left];
+    const Node & right = nodes[node.right];
+    const double leftDistance =
+      squaredDistanceToBox(point, left.minimum, left.maximum);
+    const double rightDistance =
+      squaredDistanceToBox(point, right.minimum, right.maximum);
+    if (leftDistance <= rightDistance) {
+      findNearest(node.left, point, nearest, statistics);
+      findNearest(node.right, point, nearest, statistics);
+    } else {
+      findNearest(node.right, point, nearest, statistics);
+      findNearest(node.left, point, nearest, statistics);
+    }
+  }
+};
+
+SignedDistanceField::SignedDistanceField() = default;
+SignedDistanceField::~SignedDistanceField() = default;
 
 void SignedDistanceField::calculateSignedDistanceField(
   const GridMap & gridMap, const std::string & layer,
   const double heightClearance)
 {
-  data_.clear();
-  resolution_ = gridMap.getResolution();
-  position_ = gridMap.getPosition();
-  size_ = gridMap.getSize();
-  Matrix map = gridMap.get(layer);  // Copy!
-
-  float minHeight = map.minCoeffOfFinites();
-  if (!std::isfinite(minHeight)) {minHeight = lowestHeight_;}
-  float maxHeight = map.maxCoeffOfFinites();
-  if (!std::isfinite(maxHeight)) {maxHeight = lowestHeight_;}
-  const float terrainMaxHeight = maxHeight;
-
-  // maxHeight, minHeight (TODO Make this an option).
-  const float valueForEmptyCells = lowestHeight_;
-  for (int i = 0; i < map.size(); ++i) {
-    if (std::isnan(map(i))) {map(i) = valueForEmptyCells;}
+  if (!gridMap.exists(layer) || !std::isfinite(heightClearance) ||
+    heightClearance < 0.0 || !std::isfinite(gridMap.getResolution()) ||
+    gridMap.getResolution() <= 0.0 || !gridMap.getPosition().allFinite() ||
+    !gridMap.getLength().allFinite() || (gridMap.getSize() <= 0).any())
+  {
+    throw std::invalid_argument("SignedDistanceField requires a nonempty map, "
+                                "layer, and finite valid geometry/settings.");
   }
-  const bool allHeightsFinite = map.array().isFinite().all();
 
-  // Height range of the signed distance field is higher than the max height.
-  maxHeight += heightClearance;
+  // Copy only the selected layer, preserving then normalizing circular-buffer
+  // indices.
+  GridMap normalized(std::vector<std::string>{layer});
+  normalized.setGeometry(gridMap.getLength(), gridMap.getResolution(),
+                         gridMap.getPosition());
+  normalized[layer] = gridMap.get(layer);
+  normalized.setStartIndex(gridMap.getStartIndex());
+  normalized.convertToDefaultStartIndex();
 
-  Matrix sdfElevationAbove = Matrix::Ones(map.rows(), map.cols()) * maxDistance_;
-  Matrix sdfLayer = Matrix::Zero(map.rows(), map.cols());
-  zIndexStartHeight_ = minHeight;
-
-  // Calculate signed distance field from bottom.
-  for (float h = minHeight; h < maxHeight; h += resolution_) {
-    // Once the sweep is above every finite terrain cell, both planar fields
-    // are uniform. The two distance transforms cannot affect the result: the
-    // existing recurrence only advances each cell's previous distance by one
-    // vertical resolution step. Preserve that recurrence directly.
-    if (allHeightsFinite && h > terrainMaxHeight) {
-      for (int i = 0; i < sdfElevationAbove.size(); ++i) {
-        if (sdfElevationAbove(i) == maxDistance_) {
-          sdfElevationAbove(i) = h - map(i);
-        } else {
-          sdfElevationAbove(i) = sdfLayer(i) + resolution_;
-        }
-        sdfLayer(i) = sdfElevationAbove(i);
-      }
-      data_.push_back(sdfLayer);
-      continue;
+  auto next = std::make_shared<Data>();
+  next->elevations = std::move(normalized[layer]);
+  next->resolution = gridMap.getResolution();
+  next->minimum = gridMap.getPosition() - 0.5 * gridMap.getLength().matrix();
+  next->maximum = gridMap.getPosition() + 0.5 * gridMap.getLength().matrix();
+  next->heightClearance = heightClearance;
+  next->minHeight = std::numeric_limits<double>::infinity();
+  next->maxHeight = -std::numeric_limits<double>::infinity();
+  for (Eigen::Index i = 0; i < next->elevations.size(); ++i) {
+    const double value = next->elevations(i);
+    if (std::isfinite(value)) {
+      next->minHeight = std::min(next->minHeight, value);
+      next->maxHeight = std::max(next->maxHeight, value);
     }
-
-    Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> obstacleFreeField = map.array() < h;
-    Eigen::Matrix<bool, Eigen::Dynamic,
-      Eigen::Dynamic> obstacleField = obstacleFreeField.array() < 1;
-    Matrix sdfObstacle = getPlanarSignedDistanceField(obstacleField);
-    Matrix sdfObstacleFree = getPlanarSignedDistanceField(obstacleFreeField);
-    Matrix sdf2d;
-    // If 2d sdfObstacleFree calculation failed, neglect this SDF
-    // to avoid extreme small distances (-INF).
-    if ((sdfObstacleFree.array() >= distance_transform::INF).any()) {sdf2d = sdfObstacle;} else {
-      sdf2d = sdfObstacle - sdfObstacleFree;
-    }
-    sdf2d *= resolution_;
-    for (int i = 0; i < sdfElevationAbove.size(); ++i) {
-      if (sdfElevationAbove(i) == maxDistance_ && map(i) <= h) {
-        sdfElevationAbove(i) = h - map(i);
-      } else if (sdfElevationAbove(i) != maxDistance_ && map(i) <= h) {
-        sdfElevationAbove(i) = sdfLayer(i) + resolution_;
-      }
-      if (sdf2d(i) == 0) {sdfLayer(i) = h - map(i);} else if (sdf2d(i) < 0) {
-        sdfLayer(i) = -std::min(fabs(sdf2d(i)), fabs(map(i) - h));
-      } else {sdfLayer(i) = std::min(sdf2d(i), sdfElevationAbove(i));}
-    }
-    data_.push_back(sdfLayer);
   }
+  if (!std::isfinite(next->minHeight) || !next->minimum.allFinite() ||
+    !next->maximum.allFinite())
+  {
+    throw std::invalid_argument("SignedDistanceField requires at least one "
+                                "finite elevation and finite map bounds.");
+  }
+  next->makeFaces();
+  next->nodes.reserve(2 * next->faces.size());
+  next->buildNode(0, next->faces.size());
+  data_ = std::move(next);
 }
 
-grid_map::Matrix SignedDistanceField::getPlanarSignedDistanceField(
-  Eigen::Matrix<bool,
-  Eigen::Dynamic,
-  Eigen::Dynamic> & data) const
+bool SignedDistanceField::isInside(const Position3 & position) const
 {
-  image<uchar> input(data.rows(), data.cols(), true);
+  Index index;
+  return data_ != nullptr && data_->index(position, index);
+}
 
-  for (int y = 0; y < input.height(); y++) {
-    for (int x = 0; x < input.width(); x++) {
-      imRef((&input), x, y) = data(x, y);
-    }
+SignedDistanceField::DistanceAndGradient
+SignedDistanceField::getDistanceAndGradientAt(
+  const Position3 & position, QueryStatistics *statistics) const
+{
+  if (statistics != nullptr) {
+    *statistics = QueryStatistics{};
   }
-
-  // Compute dt.
-  std::unique_ptr<image<float>> out(dt(&input));
-
-  Matrix result(data.rows(), data.cols());
-
-  // Take square roots.
-  for (int y = 0; y < out->height(); y++) {
-    for (int x = 0; x < out->width(); x++) {
-      result(x, y) = sqrt(imRef(out.get(), x, y));
-    }
+  if (data_ == nullptr) {
+    throw std::logic_error("SignedDistanceField has not been constructed.");
   }
-  return result;
+  if (!position.allFinite()) {
+    throw std::invalid_argument(
+        "SignedDistanceField query position must be finite.");
+  }
+  Index index;
+  if (!data_->index(position, index)) {
+    throw std::out_of_range(
+        "SignedDistanceField query is outside known map-cell coverage.");
+  }
+  const double height = data_->elevations(index.x(), index.y());
+  const Vector3 top(position.x(), position.y(), height);
+  Data::Nearest nearest{(position - top).squaredNorm(), top, Vector3::UnitZ()};
+  data_->findNearest(0, position, nearest, statistics);
+  const double magnitude = std::sqrt(nearest.squaredDistance);
+  if (!std::isfinite(magnitude)) {
+    throw std::overflow_error(
+        "SignedDistanceField distance is not representable.");
+  }
+  const double sign = position.z() < height ? -1.0 : 1.0;
+  const Vector3 gradient = magnitude > 0.0 ?
+    sign * (position - nearest.point) / magnitude :
+    nearest.normal;
+  return {sign * magnitude, gradient};
+}
+
+SignedDistanceField::DistanceAndGradient
+SignedDistanceField::getKnownCoverageDistanceAndGradientAt(
+  const Position3 & position) const
+{
+  if (data_ == nullptr) {
+    throw std::logic_error("SignedDistanceField has not been constructed.");
+  }
+  if (!position.allFinite()) {
+    throw std::invalid_argument(
+        "SignedDistanceField query position must be finite.");
+  }
+  // Above every finite face by more than the map diagonal, the nearest
+  // boundary is necessarily an unbounded unknown/exterior wall. Querying the
+  // existing exact BVH there gives the horizontal coverage distance directly.
+  const double separation = (data_->maximum - data_->minimum).norm() + 1.0;
+  const double height = std::nextafter(data_->maxHeight + separation,
+                                       std::numeric_limits<double>::infinity());
+  if (!std::isfinite(height) || height - data_->maxHeight < separation) {
+    throw std::overflow_error(
+        "SignedDistanceField coverage-query height is not representable.");
+  }
+  return getDistanceAndGradientAt(
+      Position3(position.x(), position.y(), height));
 }
 
 double SignedDistanceField::getDistanceAt(const Position3 & position) const
 {
-  double xCenter = size_.x() / 2.0;
-  double yCenter = size_.y() / 2.0;
-  int i = std::round(xCenter - (position.x() - position_.x()) / resolution_);
-  int j = std::round(yCenter - (position.y() - position_.y()) / resolution_);
-  int k = std::round((position.z() - zIndexStartHeight_) / resolution_);
-  i = std::max(i, 0);
-  i = std::min(i, size_.x() - 1);
-  j = std::max(j, 0);
-  j = std::min(j, size_.y() - 1);
-  k = std::max(k, 0);
-  k = std::min(k, static_cast<int>(data_.size()) - 1);
-  return data_[k](i, j);
+  return getDistanceAndGradientAt(position).distance;
 }
 
-double SignedDistanceField::getInterpolatedDistanceAt(const Position3 & position) const
+double SignedDistanceField::getInterpolatedDistanceAt(
+  const Position3 & position) const
 {
-  double xCenter = size_.x() / 2.0;
-  double yCenter = size_.y() / 2.0;
-  int i = std::round(xCenter - (position.x() - position_.x()) / resolution_);
-  int j = std::round(yCenter - (position.y() - position_.y()) / resolution_);
-  int k = std::round((position.z() - zIndexStartHeight_) / resolution_);
-  i = std::max(i, 0);
-  i = std::min(i, size_.x() - 1);
-  j = std::max(j, 0);
-  j = std::min(j, size_.y() - 1);
-  k = std::max(k, 0);
-  k = std::min(k, static_cast<int>(data_.size()) - 1);
-  Vector3 gradient = getDistanceGradientAt(position);
-  double xp = position_.x() + ((size_.x() - i) - xCenter) * resolution_;
-  double yp = position_.y() + ((size_.y() - j) - yCenter) * resolution_;
-  double zp = zIndexStartHeight_ + k * resolution_;
-  Vector3 error = position - Vector3(xp, yp, zp);
-  return data_[k](i, j) + gradient.dot(error);
+  return getDistanceAt(position);
 }
 
-Vector3 SignedDistanceField::getDistanceGradientAt(const Position3 & position) const
+Vector3
+SignedDistanceField::getDistanceGradientAt(const Position3 & position) const
 {
-  double xCenter = size_.x() / 2.0;
-  double yCenter = size_.y() / 2.0;
-  int i = std::round(xCenter - (position.x() - position_.x()) / resolution_);
-  int j = std::round(yCenter - (position.y() - position_.y()) / resolution_);
-  int k = std::round((position.z() - zIndexStartHeight_) / resolution_);
-  i = std::max(i, 1);
-  i = std::min(i, size_.x() - 2);
-  j = std::max(j, 1);
-  j = std::min(j, size_.y() - 2);
-  k = std::max(k, 1);
-  k = std::min(k, static_cast<int>(data_.size()) - 2);
-  double dx = (data_[k](i - 1, j) - data_[k](i + 1, j)) / (2 * resolution_);
-  double dy = (data_[k](i, j - 1) - data_[k](i, j + 1)) / (2 * resolution_);
-  double dz = (data_[k + 1](i, j) - data_[k - 1](i, j)) / (2 * resolution_);
-  return Vector3(dx, dy, dz);
+  return getDistanceAndGradientAt(position).gradient;
 }
 
-void SignedDistanceField::convertToPointCloud(pcl::PointCloud<pcl::PointXYZI> & points) const
+void SignedDistanceField::convertToPointCloud(
+  pcl::PointCloud<pcl::PointXYZI> & points) const
 {
-  double xCenter = size_.x() / 2.0;
-  double yCenter = size_.y() / 2.0;
-  for (int z = 0; z < static_cast<int>(data_.size()); z++) {
-    for (int y = 0; y < static_cast<int>(size_.y()); y++) {
-      for (int x = 0; x < static_cast<int>(size_.x()); x++) {
-        double xp = position_.x() + ((size_.x() - x) - xCenter) * resolution_;
-        double yp = position_.y() + ((size_.y() - y) - yCenter) * resolution_;
-        double zp = zIndexStartHeight_ + z * resolution_;
-        pcl::PointXYZI p;
-        p.x = xp;
-        p.y = yp;
-        p.z = zp;
-        p.intensity = data_[z](x, y);
-        points.push_back(p);
+  if (data_ == nullptr) {
+    throw std::logic_error("SignedDistanceField has not been constructed.");
+  }
+  const double steps =
+    (data_->maxHeight - data_->minHeight + data_->heightClearance) /
+    data_->resolution;
+  if (!std::isfinite(steps) ||
+    steps >= static_cast<double>(std::numeric_limits<std::size_t>::max()))
+  {
+    throw std::length_error(
+        "SignedDistanceField point-cloud height range is too large.");
+  }
+  const std::size_t slices = static_cast<std::size_t>(std::floor(steps)) + 1;
+  for (std::size_t k = 0; k < slices; ++k) {
+    const double z = data_->minHeight + k * data_->resolution;
+    for (Eigen::Index row = 0; row < data_->elevations.rows(); ++row) {
+      for (Eigen::Index column = 0; column < data_->elevations.cols();
+        ++column)
+      {
+        if (!std::isfinite(data_->elevations(row, column))) {
+          continue;
+        }
+        const Vector3 position(
+          data_->maximum.x() - (row + 0.5) * data_->resolution,
+          data_->maximum.y() - (column + 0.5) * data_->resolution, z);
+        pcl::PointXYZI point;
+        point.x = static_cast<float>(position.x());
+        point.y = static_cast<float>(position.y());
+        point.z = static_cast<float>(position.z());
+        point.intensity = static_cast<float>(getDistanceAt(position));
+        points.push_back(point);
       }
     }
   }

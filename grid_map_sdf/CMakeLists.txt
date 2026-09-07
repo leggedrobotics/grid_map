@@ -103,6 +103,9 @@ if(BUILD_TESTING)
 
   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 
+  add_executable(${PROJECT_NAME}_benchmark test/SignedDistanceFieldBenchmark.cpp)
+  target_link_libraries(${PROJECT_NAME}_benchmark ${PROJECT_NAME})
+
 endif()
 
 if(TARGET ${PROJECT_NAME}-test)
