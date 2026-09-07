@@ -9,6 +9,7 @@
 #include "grid_map_sdf/SignedDistanceField.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -84,6 +85,7 @@ struct SignedDistanceField::Data
   double minHeight;
   double maxHeight;
   double heightClearance;
+  bool completeCoverage = true;
   std::vector<Face> faces;
   std::vector<Node> nodes;
 
@@ -233,16 +235,17 @@ struct SignedDistanceField::Data
   }
 
   void findNearest(
-    std::size_t index, const Position3 & point, Nearest & nearest,
+    std::size_t index, const Position3 & point, double nodeDistance,
+    Nearest & nearest,
     QueryStatistics *statistics) const
   {
     const Node & node = nodes[index];
     if (statistics != nullptr) {
       ++statistics->nodesVisited;
     }
-    if (squaredDistanceToBox(point, node.minimum, node.maximum) >
-      nearest.squaredDistance)
-    {
+    // The parent already evaluated this bound to choose traversal order.
+    // Compare it again after visiting the sibling, whose result may be closer.
+    if (nodeDistance > nearest.squaredDistance) {
       return;
     }
     if (node.left == 0) {
@@ -270,11 +273,11 @@ struct SignedDistanceField::Data
     const double rightDistance =
       squaredDistanceToBox(point, right.minimum, right.maximum);
     if (leftDistance <= rightDistance) {
-      findNearest(node.left, point, nearest, statistics);
-      findNearest(node.right, point, nearest, statistics);
+      findNearest(node.left, point, leftDistance, nearest, statistics);
+      findNearest(node.right, point, rightDistance, nearest, statistics);
     } else {
-      findNearest(node.right, point, nearest, statistics);
-      findNearest(node.left, point, nearest, statistics);
+      findNearest(node.right, point, rightDistance, nearest, statistics);
+      findNearest(node.left, point, leftDistance, nearest, statistics);
     }
   }
 };
@@ -317,6 +320,8 @@ void SignedDistanceField::calculateSignedDistanceField(
     if (std::isfinite(value)) {
       next->minHeight = std::min(next->minHeight, value);
       next->maxHeight = std::max(next->maxHeight, value);
+    } else {
+      next->completeCoverage = false;
     }
   }
   if (!std::isfinite(next->minHeight) || !next->minimum.allFinite() ||
@@ -359,7 +364,10 @@ SignedDistanceField::getDistanceAndGradientAt(
   const double height = data_->elevations(index.x(), index.y());
   const Vector3 top(position.x(), position.y(), height);
   Data::Nearest nearest{(position - top).squaredNorm(), top, Vector3::UnitZ()};
-  data_->findNearest(0, position, nearest, statistics);
+  const auto & root = data_->nodes.front();
+  data_->findNearest(0, position,
+    squaredDistanceToBox(position, root.minimum, root.maximum), nearest,
+    statistics);
   const double magnitude = std::sqrt(nearest.squaredDistance);
   if (!std::isfinite(magnitude)) {
     throw std::overflow_error(
@@ -392,6 +400,49 @@ SignedDistanceField::getKnownCoverageDistanceAndGradientAt(
   if (!std::isfinite(height) || height - data_->maxHeight < separation) {
     throw std::overflow_error(
         "SignedDistanceField coverage-query height is not representable.");
+  }
+  if (data_->completeCoverage) {
+    Index index;
+    if (!data_->index(position, index)) {
+      throw std::out_of_range(
+          "SignedDistanceField query is outside known map-cell coverage.");
+    }
+    // Use the generated faces' arithmetic: metadata minimum bounds can differ
+    // by an ULP and change the nearest gradient at an otherwise exact tie.
+    const Position faceMinimum(
+      data_->maximum.x() - data_->elevations.rows() * data_->resolution,
+      data_->maximum.y() - data_->elevations.cols() * data_->resolution);
+    if (position.x() >= faceMinimum.x() && position.y() >= faceMinimum.y()) {
+      // With every cell known, coverage is exactly the four exterior walls.
+      // Preserve their squared-distance comparison and exposed-face tie order:
+      // maximum x, minimum x, maximum y, minimum y.
+      const std::array<double, 4> distances{
+        data_->maximum.x() - position.x(), position.x() - faceMinimum.x(),
+        data_->maximum.y() - position.y(), position.y() - faceMinimum.y()};
+      const std::array<Vector3, 4> normals{
+        -Vector3::UnitX(), Vector3::UnitX(), -Vector3::UnitY(), Vector3::UnitY()};
+      std::size_t nearest = 0;
+      double squaredDistance = distances[0] * distances[0];
+      for (std::size_t edge = 1; edge < distances.size(); ++edge) {
+        const double candidate = distances[edge] * distances[edge];
+        if (candidate < squaredDistance) {
+          squaredDistance = candidate;
+          nearest = edge;
+        }
+      }
+      const double magnitude = std::sqrt(squaredDistance);
+      if (!std::isfinite(magnitude)) {
+        throw std::overflow_error(
+            "SignedDistanceField distance is not representable.");
+      }
+      Vector3 gradient = normals[nearest];
+      if (magnitude > 0.0) {
+        gradient = (distances[nearest] * normals[nearest]) / magnitude;
+      }
+      return {magnitude, gradient};
+    }
+    // Rounding may admit a metadata boundary point just outside the generated
+    // face rectangle. The ordinary query retains its distance and gradient.
   }
   return getDistanceAndGradientAt(
       Position3(position.x(), position.y(), height));

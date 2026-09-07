@@ -140,6 +140,39 @@ TEST(SignedDistanceField, StepRegressionUsesCellEdgesAndEuclideanCorners) {
   }
 }
 
+TEST(SignedDistanceField, CompleteCoverageMatchesExposedWallsIncludingTies) {
+  auto map = makeMap(4.0, 0.25);
+  ASSERT_TRUE(map.move(Position(0.5, -0.75)));
+  ASSERT_FALSE((map.getStartIndex() == 0).all());
+  setHeights(map, [](const Position & point) {
+      return std::sin(7.0 * point.x()) + std::cos(5.0 * point.y());
+  });
+  const auto field = makeField(map);
+  const Position centre = map.getPosition();
+  // This ordinary 3-D query is above all finite terrain faces. Its nearest
+  // face must be an exterior wall, independently of the coverage fast path.
+  constexpr double aboveTerrain = 100.0;
+  for (double x : {-2.0, -1.75, -0.5, 0.0, 0.5, 1.75, 2.0}) {
+    for (double y : {-2.0, -1.75, -0.5, 0.0, 0.5, 1.75, 2.0}) {
+      const Position3 high(centre.x() + x, centre.y() + y, aboveTerrain);
+      const auto reference = field.getDistanceAndGradientAt(high);
+      for (double z : {-50.0, 0.0, 50.0}) {
+        const auto actual = field.getKnownCoverageDistanceAndGradientAt(
+          Position3(high.x(), high.y(), z));
+        EXPECT_NEAR(actual.distance, reference.distance, 1e-12);
+        EXPECT_TRUE(actual.gradient.isApprox(reference.gradient, 1e-12));
+      }
+    }
+  }
+  EXPECT_TRUE(field.getKnownCoverageDistanceAndGradientAt(
+      Position3(centre.x(), centre.y(), 0.0)).gradient.isApprox(-Vector3::UnitX()));
+  EXPECT_THROW(field.getKnownCoverageDistanceAndGradientAt(
+      Position3(centre.x() + 2.00001, centre.y(), 0.0)), std::out_of_range);
+  EXPECT_THROW(field.getKnownCoverageDistanceAndGradientAt(
+      Position3(centre.x(), centre.y(), std::numeric_limits<double>::infinity())),
+    std::invalid_argument);
+}
+
 TEST(SignedDistanceField, TrenchHasNoBuriedInternalFaces) {
   auto map = makeMap();
   setHeights(map, [](const Position & point) {
@@ -150,6 +183,28 @@ TEST(SignedDistanceField, TrenchHasNoBuriedInternalFaces) {
   EXPECT_NEAR(field.getDistanceAt(Position3(1.0, 0.1, 1.0)), -0.5, 1e-12);
   EXPECT_NEAR(field.getDistanceAt(Position3(1.0, 0.1, -0.5)), -std::sqrt(0.5),
               1e-12);
+}
+
+TEST(SignedDistanceField, CoveragePreservesRoundedFaceBoundsAndGradientTies) {
+  for (const Position & centre : {Position(0.2, 0.0), Position(-0.3, 0.7)}) {
+    auto map = makeMap(4.0, 0.25);
+    map.setPosition(centre);
+    const auto field = makeField(map);
+    const Position minimum = centre - 0.5 * map.getLength().matrix();
+    const Position maximum = centre + 0.5 * map.getLength().matrix();
+    for (double x : {minimum.x(), centre.x(), maximum.x()}) {
+      for (double y : {minimum.y(), centre.y(), maximum.y()}) {
+        const auto reference = field.getDistanceAndGradientAt(
+          Position3(x, y, 100.0));
+        const auto actual = field.getKnownCoverageDistanceAndGradientAt(
+          Position3(x, y, -100.0));
+        EXPECT_DOUBLE_EQ(actual.distance, reference.distance);
+        EXPECT_TRUE(actual.gradient.isApprox(reference.gradient, 1e-12))
+          << "query " << x << ", " << y << " actual " << actual.gradient.transpose()
+          << " reference " << reference.gradient.transpose();
+      }
+    }
+  }
 }
 
 TEST(SignedDistanceField, UnknownCellsBlockClearanceAndRejectDirectQueries) {
@@ -169,6 +224,14 @@ TEST(SignedDistanceField, UnknownCellsBlockClearanceAndRejectDirectQueries) {
     EXPECT_FALSE(field.isInside(Position3(0.5, 0.0, 1.0)));
     EXPECT_THROW(field.getDistanceAt(Position3(0.5, 0.0, 1.0)),
                  std::out_of_range);
+    for (double z : {-100.0, 0.0, 100.0}) {
+      const auto coverage = field.getKnownCoverageDistanceAndGradientAt(
+        Position3(-0.5, 0.0, z));
+      EXPECT_NEAR(coverage.distance, 0.5, 1e-12);
+      EXPECT_TRUE(coverage.gradient.isApprox(-Vector3::UnitX()));
+      EXPECT_THROW(field.getKnownCoverageDistanceAndGradientAt(
+          Position3(0.5, 0.0, z)), std::out_of_range);
+    }
   }
 }
 
